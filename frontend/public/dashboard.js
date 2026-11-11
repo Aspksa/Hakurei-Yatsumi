@@ -14,52 +14,47 @@ const isoWeek = date => {
   return Math.ceil(((d - Date.UTC(d.getUTCFullYear(), 0, 1)) / 86400000 + 1) / 7);
 };
 
-/* ---------------- часы: циферблат и цифры ---------------- */
+/* ---------------- электронные часы (семисегментный дисплей) ---------------- */
+const SEGMENTS = { a: 'M8 5 L13 0 L45 0 L50 5 L45 10 L13 10 Z', b: 'M53 8 L58 13 L58 44 L53 49 L48 44 L48 13 Z', c: 'M53 52 L58 57 L58 88 L53 93 L48 88 L48 57 Z',
+  d: 'M8 95 L13 90 L45 90 L50 95 L45 100 L13 100 Z', e: 'M5 52 L10 57 L10 88 L5 93 L0 88 L0 57 Z', f: 'M5 8 L10 13 L10 44 L5 49 L0 44 L0 13 Z', g: 'M8 50 L13 45 L45 45 L50 50 L45 55 L13 55 Z' };
+const LIT = ['abcdef', 'bc', 'abdeg', 'abcdg', 'bcfg', 'acdfg', 'acdefg', 'abc', 'abcdefg', 'abcdfg'];
 const NS = 'http://www.w3.org/2000/svg';
-const ticks = $('dialTicks');
-for (let i = 0; i < 60; i++) {
-  const major = i % 5 === 0, a = i * 6 * Math.PI / 180, r1 = major ? 76 : 81, r2 = 85;
-  const line = document.createElementNS(NS, 'line');
-  line.setAttribute('x1', (100 + Math.sin(a) * r1).toFixed(2)); line.setAttribute('y1', (100 - Math.cos(a) * r1).toFixed(2));
-  line.setAttribute('x2', (100 + Math.sin(a) * r2).toFixed(2)); line.setAttribute('y2', (100 - Math.cos(a) * r2).toFixed(2));
-  line.setAttribute('class', major ? 'tick major' : 'tick');
-  ticks.append(line);
-}
-// Цифры времени: каждая цифра — отдельный элемент, при смене она «перелистывается».
 const digitBox = $('clockTime');
 const digits = [];
-const build = (parent, count) => { for (let i = 0; i < count; i++) { const dg = document.createElement('span'); dg.className = 'dg'; parent.append(dg); digits.push(dg); } };
+function makeDigit(parent) {
+  const dg = document.createElement('span');
+  dg.className = 'dg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 58 100'); svg.setAttribute('aria-hidden', 'true');
+  for (const [name, path] of Object.entries(SEGMENTS)) {
+    const p = document.createElementNS(NS, 'path');
+    p.setAttribute('d', path); p.setAttribute('class', 's'); p.dataset.s = name;
+    svg.append(p);
+  }
+  const text = document.createElement('b');
+  text.className = 'vh';
+  dg.append(svg, text);
+  parent.append(dg); digits.push(dg);
+}
 const colon = () => Object.assign(document.createElement('span'), { className: 'colon', textContent: ':' });
-build(digitBox, 2); digitBox.append(colon()); build(digitBox, 2);
+makeDigit(digitBox); makeDigit(digitBox); digitBox.append(colon()); makeDigit(digitBox); makeDigit(digitBox);
 const secBox = Object.assign(document.createElement('span'), { className: 'sec' });
-secBox.append(colon()); build(secBox, 2); digitBox.append(secBox);
+secBox.append(colon()); makeDigit(secBox); makeDigit(secBox); digitBox.append(secBox);
 function setDigits(text) {
   digits.forEach((dg, i) => {
-    if (dg.textContent === text[i]) return;
-    const first = dg.textContent === '';
-    dg.dataset.prev = dg.textContent; dg.textContent = text[i];
-    if (first || reduceMotion()) return;
-    dg.classList.remove('roll'); void dg.offsetWidth; dg.classList.add('roll');
+    const value = text[i];
+    if (dg.dataset.d === value) return;
+    dg.dataset.d = value;
+    dg.querySelector('.vh').textContent = value;
+    const lit = LIT[Number(value)];
+    dg.querySelectorAll('.s').forEach(s => s.classList.toggle('on', lit.includes(s.dataset.s)));
   });
-}
-function setHands(now, smooth) {
-  const ms = smooth ? now.getMilliseconds() : 0, s = now.getSeconds() + ms / 1000;
-  const m = now.getMinutes() + s / 60, h = (now.getHours() % 12) + m / 60;
-  $('handHour').setAttribute('transform', `rotate(${(h * 30).toFixed(2)} 100 100)`);
-  $('handMin').setAttribute('transform', `rotate(${(m * 6).toFixed(2)} 100 100)`);
-  $('handSec').setAttribute('transform', `rotate(${(s * 6).toFixed(2)} 100 100)`);
-  $('dialArc').style.strokeDashoffset = String(100 - s / 60 * 100);
-}
-function frame() {
-  if (!document.hidden) setHands(new Date(), !reduceMotion());
-  requestAnimationFrame(frame);
 }
 
 let clockDay = '';
 function renderClock() {
   const now = new Date();
   setDigits(`${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`);
-  setHands(now, false);
   const elapsed = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
   const left = 86400 - elapsed;
   $('dayBar').style.transform = `scaleX(${elapsed / 86400})`;
@@ -436,7 +431,6 @@ calendarReady = true;
 renderCalendar();
 renderTasks();
 tick();
-requestAnimationFrame(frame);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) renderClock(); });
 
 // Подсветка карточек следом за курсором.

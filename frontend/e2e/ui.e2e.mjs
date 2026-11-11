@@ -193,16 +193,29 @@ test('home: clock, date and today in the production calendar', async () => {
   await context.close();
 });
 
-test('home: analog dial hands show the current time', async () => {
+test('home: the clock is an electronic seven-segment display', async () => {
   const { page, context } = await openPage({ time: NOW });
-  await page.waitForTimeout(300);
-  const angle = id => page.getAttribute('#' + id, 'transform').then(v => Number(/rotate\(([\d.]+)/.exec(v)[1]));
-  const near = (actual, expected, tolerance) => assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} is not within ${tolerance} of ${expected}`);
-  near(await angle('handHour'), 307.75, 2);   // 10:15:30 → (10 + 15.5/60) × 30°
-  near(await angle('handMin'), 93, 3);        // 15.5 мин × 6°
-  const sec = await angle('handSec');
-  assert.ok(sec >= 180 && sec < 360, 'second hand moves with the seconds');
-  assert.equal(await page.locator('#dialTicks line').count(), 60);
+  assert.equal(await page.locator('#dial, #dialTicks, #handHour').count(), 0, 'no analog dial');
+  assert.equal(await page.locator('#clockTime .dg').count(), 6);
+  assert.equal(await page.locator('#clockTime .colon').count(), 2);
+  const lit = i => page.locator('#clockTime .dg').nth(i).locator('.s.on').count();
+  // 10:15 → цифры 1, 0, 1, 5: у «1» горят 2 сегмента, у «0» — 6, у «5» — 5.
+  assert.deepEqual([await lit(0), await lit(1), await lit(2), await lit(3)], [2, 6, 2, 5]);
+  assert.equal(await page.getAttribute('#clockTime .dg:nth-of-type(1)', 'data-d'), '1');
+  // Двоеточие рисуется двумя светящимися точками, а не текстом.
+  const dots = await page.$eval('#clockTime .colon', el => [getComputedStyle(el, '::before').width, getComputedStyle(el, '::after').width]);
+  assert.ok(dots.every(w => parseFloat(w) > 2), `colon dots are visible: ${dots}`);
+  // Секунды обновляются: цифры сегментов меняются, текст для скринридеров не расходится с ними.
+  assert.match(await page.textContent('#clockTime'), /^10:15:\d\d$/);
+  await context.close();
+});
+
+test('home: calendar days are rounded squares, not circles', async () => {
+  const { page, context } = await openPage({ time: NOW });
+  const radius = await page.$eval('.cal-day', el => getComputedStyle(el).borderTopLeftRadius);
+  assert.equal(radius, '12px');
+  const { width, height } = await page.$eval('.cal-day', el => el.getBoundingClientRect().toJSON());
+  assert.ok(width > 0 && Math.abs(width - height) < width * 0.2, `roughly square: ${width}x${height}`);
   await context.close();
 });
 
