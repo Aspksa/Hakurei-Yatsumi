@@ -41,7 +41,12 @@ class MemoryIn(BaseModel):
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    try:
+        with connection() as db:
+            db.execute("SELECT 1").fetchone()
+        return {"status": "ok", "sqlite": "ok"}
+    except sqlite3.Error:
+        raise HTTPException(503, "SQLite unavailable")
 
 @app.post("/users", status_code=201)
 def create_user(data: UserIn):
