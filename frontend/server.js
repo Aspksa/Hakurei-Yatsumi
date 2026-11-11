@@ -129,12 +129,17 @@ export function createGateway({ config = readConfig(), fetchImpl = fetch, logger
       const target = new URL('/' + req.path.replace(/^\/+/, ''), config.apiUrl);
       target.search = new URL(req.originalUrl, 'http://localhost').search;
       const hasBody = !['GET', 'HEAD'].includes(req.method) && req.body !== undefined;
-      const upstream = await fetchImpl(target, {
+      const upstream = await (req.method === 'POST' ? queue.submit(() => fetchImpl(target, {
         method: req.method,
         headers: { 'x-api-key': config.apiKey, 'x-request-id': req.requestId, ...(hasBody ? { 'content-type': 'application/json' } : {}) },
         ...(hasBody ? { body: JSON.stringify(req.body) } : {}),
         signal: controller.signal, redirect: 'manual'
-      });
+      })) : fetchImpl(target, {
+        method: req.method,
+        headers: { 'x-api-key': config.apiKey, 'x-request-id': req.requestId, ...(hasBody ? { 'content-type': 'application/json' } : {}) },
+        ...(hasBody ? { body: JSON.stringify(req.body) } : {}),
+        signal: controller.signal, redirect: 'manual'
+      }));
       if (upstream.status >= 300 && upstream.status < 400) return res.status(502).json({ error: 'Upstream redirect rejected' });
       const body = await upstream.text();
       const contentType = upstream.headers.get('content-type') || 'application/json';
@@ -142,7 +147,7 @@ export function createGateway({ config = readConfig(), fetchImpl = fetch, logger
     } catch (error) {
       metrics.failures++;
       logger('warn', 'upstream_failure', { requestId: req.requestId, type: error?.name === 'AbortError' ? 'timeout' : 'unavailable' });
-      res.status(error?.name === 'AbortError' ? 504 : 502).json({ error: 'Python API unavailable' });
+      res.status(error?.message === 'Queue full' ? 503 : error?.name === 'AbortError' ? 504 : 502).json({ error: error?.message === 'Queue full' ? 'Gateway busy' : 'Python API unavailable' });
     } finally { clearTimeout(timer); }
   });
   app.use((error, req, res, next) => {
