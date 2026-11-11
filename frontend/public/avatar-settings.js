@@ -26,8 +26,11 @@ async function store(mode, operation) {
     return await new Promise((resolve, reject) => {
       const transaction = db.transaction('assets', mode);
       const request = operation(transaction.objectStore('assets'));
-      request.onsuccess = () => resolve(request.result);
+      let result;
+      request.onsuccess = () => { result = request.result; };
       request.onerror = () => reject(request.error || new Error('Ошибка сохранения аватара'));
+      transaction.oncomplete = () => resolve(result);
+      transaction.onerror = () => reject(transaction.error || new Error('Ошибка транзакции'));
       transaction.onabort = () => reject(transaction.error || new Error('Операция отменена'));
     });
   } finally {
