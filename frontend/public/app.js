@@ -1,0 +1,122 @@
+const $ = id => document.getElementById(id);
+const overlay = $('overlay');
+const history = [];
+let connected = false;
+function openSettings() { overlay.hidden = false; $('apiKey').focus(); }
+function closeSettings() { overlay.hidden = true; $('settingsOpen').focus(); }
+function notice(text) { $('notice').textContent = text; }
+function setStatus(state) {
+  connected = Boolean(state.connected);
+  const label = connected ? 'Модель работает' : state.configured ? 'Не подключено' : 'Нет подключения';
+  for (const id of ['headerDot', 'panelDot']) $('' + id).className = 'dot ' + (connected ? 'green' : 'red');
+  $('headerStatus').textContent = label;
+  $('panelStatus').textContent = label;
+  $('send').disabled = !connected;
+  $('message').placeholder = connected ? 'Напиши сообщение Яцуми…' : 'Сначала подключите модель в настройках…';
+}
+async function api(path, options = {}) {
+  const response = await fetch(path, { ...options, headers: { 'content-type': 'application/json', ...(options.headers || {}) } });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || 'Ошибка подключения');
+  return result;
+}
+async function refreshModels() {
+  const select = $('modelSelect');
+  select.disabled = true;
+  select.replaceChildren(new Option('Загрузка моделей…', ''));
+  $('connectModel').disabled = true;
+  try {
+    const data = await api('/cloud/models');
+    select.replaceChildren(new Option('Выберите модель', ''), ...data.models.map(m => new Option(m.name, m.id)));
+    select.disabled = data.models.length === 0;
+    $('modelCount').textContent = 'Доступно моделей: ' + data.models.length;
+    notice(data.models.length ? 'Модели загружены. Выберите нужную.' : 'Cloud.ru вернул пустой список моделей.');
+  } catch (error) {
+    select.replaceChildren(new Option('Не удалось загрузить модели', ''));
+    $('modelCount').textContent = 'Ошибка загрузки';
+    notice(error.message);
+    setStatus({ configured: true, connected: false });
+  }
+}
+$('settingsOpen').addEventListener('click', openSettings);
+$('setupStart').addEventListener('click', openSettings);
+$('settingsClose').addEventListener('click', closeSettings);
+$('settingsCloseBackdrop').addEventListener('click', closeSettings);
+document.addEventListener('keydown', event => { if (event.key === 'Escape' && !overlay.hidden) closeSettings(); });
+$('toggleKey').addEventListener('click', () => { $('apiKey').type = $('apiKey').type === 'password' ? 'text' : 'password'; });
+$('saveKey').addEventListener('click', async () => {
+  const key = $('apiKey').value.trim();
+  if (!key) return notice('Вставьте API-ключ Cloud.ru.');
+  $('saveKey').disabled = true;
+  try {
+    const state = await api('/cloud/key', { method: 'POST', body: JSON.stringify({ key }) });
+    $('apiKey').value = '';
+    setStatus(state);
+    notice('Ключ принят локальным сервером. Загружаю модели…');
+    await refreshModels();
+  } catch (error) { notice(error.message); }
+  finally { $('saveKey').disabled = false; }
+});
+$('reloadModels').addEventListener('click', refreshModels);
+$('modelSelect').addEventListener('change', () => { $('connectModel').disabled = !$('modelSelect').value; });
+$('connectModel').addEventListener('click', async () => {
+  $('connectModel').disabled = true;
+  try {
+    const state = await api('/cloud/connect', { method: 'POST', body: JSON.stringify({ model: $('modelSelect').value }) });
+    setStatus(state);
+    notice('Модель подключена. Можно начать диалог.');
+    closeSettings();
+  } catch (error) { notice(error.message); setStatus({ configured: true, connected: false }); }
+  finally { $('connectModel').disabled = !$('modelSelect').value; }
+});
+$('forgetKey').addEventListener('click', async () => {
+  try {
+    const state = await api('/cloud/key', { method: 'DELETE' });
+    setStatus(state);
+    $('modelSelect').replaceChildren(new Option('Сначала добавьте API-ключ', ''));
+    $('modelSelect').disabled = true;
+    $('connectModel').disabled = true;
+    $('modelCount').textContent = 'Модели ещё не загружены';
+    notice('Ключ сброшен.');
+  } catch (error) { notice(error.message); }
+});
+function bubble(role, content) {
+  const element = document.createElement('div');
+  element.className = 'bubble ' + role;
+  element.textContent = content;
+  $('conversation').append(element);
+  element.scrollIntoView({ block: 'end', behavior: 'smooth' });
+  return element;
+}
+$('chatForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  const content = $('message').value.trim();
+  if (!content || !connected) return;
+  $('welcome').hidden = true;
+  $('conversation').hidden = false;
+  $('message').value = '';
+  bubble('user', content);
+  history.push({ role: 'user', content });
+  const loading = bubble('assistant', 'Яцуми думает…');
+  $('send').disabled = true;
+  try {
+    const response = await api('/cloud/chat', { method: 'POST', body: JSON.stringify({ messages: history.slice(-30) }) });
+    loading.textContent = response.content;
+    history.push({ role: 'assistant', content: response.content });
+  } catch (error) {
+    loading.textContent = 'Ошибка: ' + error.message;
+    history.pop();
+    if (/подключ|Cloud.ru|ключ/i.test(error.message)) {
+      setStatus({ configured: true, connected: false });
+    }
+  } finally { $('send').disabled = !connected; }
+});
+$('message').addEventListener('keydown', event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); $('chatForm').requestSubmit(); } });
+(async () => {
+  try {
+    const state = await api('/cloud/status');
+    setStatus(state);
+    if (state.configured) await refreshModels();
+    if (state.model && $('modelSelect').querySelector('option[value="' + CSS.escape(state.model) + '"]')) $('modelSelect').value = state.model;
+  } catch { setStatus({ configured: false, connected: false }); }
+})();
