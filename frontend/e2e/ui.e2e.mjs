@@ -27,11 +27,12 @@ afterEach(async () => {
 
 const json = (route, body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 
-async function openPage({ connected = false, history = [], streamDelay = 0, storage = {}, viewport = { width: 1100, height: 800 }, time = null, avatar = true } = {}) {
+async function openPage({ connected = false, history = [], streamDelay = 0, storage = {}, viewport = { width: 1100, height: 800 }, time = null, avatar = true, avatarHidden = false } = {}) {
   const context = await browser.newContext({ viewport });
   await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: base });
   const page = await context.newPage();
   const calls = [];
+  if (avatarHidden) storage = { ...storage, 'yatsumi-avatar-prefs-v1': JSON.stringify({ show: false }) };
   await page.addInitScript(entries => { for (const [k, v] of Object.entries(entries)) if (!localStorage.getItem(k)) localStorage.setItem(k, v); }, storage);
   await page.route('**/cloud/status', route => json(route, { configured: connected, connected, model: connected ? 'm' : undefined }));
   await page.route('**/cloud/models', route => json(route, { models: [{ id: 'm', name: 'Model' }] }));
@@ -44,7 +45,8 @@ async function openPage({ connected = false, history = [], streamDelay = 0, stor
   if (time) await page.clock.install({ time: new Date(time) });
   if (!avatar) await page.route('**/core/avatar*', route => route.fulfill({ status: 204 }));
   await page.goto(base + '/');
-  if (avatar) await page.locator('#yatsumiAvatar').waitFor({ state: 'visible' });
+  if (avatarHidden) await page.locator('html[data-av="off"]').waitFor({ state: 'attached' });
+  else if (avatar) await page.locator('#yatsumiAvatar').waitFor({ state: 'visible' });
   else await page.locator('html[data-no-avatar]').waitFor({ state: 'attached' });
   return { page, context, calls };
 }
@@ -165,6 +167,8 @@ test('avatar animation follows the setting and reacts while Yatsumi replies', as
 test('mobile layout has no horizontal overflow', async () => {
   const { page, context } = await openPage({ viewport: { width: 390, height: 780 } });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'home');
+  await page.fill('#taskText', 'Очень длинное название дела, которое должно переноситься на несколько строк без горизонтальной прокрутки'); await page.fill('#taskDate', '2026-11-20'); await page.click('#taskAdd');
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'home with a long task');
   await openChat(page); await page.click('#settingsOpen'); await page.click('#tab-look');
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.click('#tab-home');
@@ -183,8 +187,47 @@ test('home: clock, date and today in the production calendar', async () => {
   const today = page.locator('.cal-day.is-today');
   assert.equal(await today.getAttribute('data-key'), '2026-11-04');
   assert.match(await today.getAttribute('class'), /k-holiday/);
-  assert.match(await page.textContent('#calStats'), /рабочих дней 20, выходных и праздничных 10, норма 159 ч/);
-  assert.match(await page.textContent('#calStats'), /2026 год: рабочих 247, выходных 118, норма 1972 ч/);
+  const stat = k => page.textContent(`.stat[data-k="${k}"] b`);
+  assert.deepEqual([await stat('work'), await stat('off'), await stat('hours')], ['20', '10', '159']);
+  assert.match(await page.textContent('.year-line'), /2026 год: рабочих 247, выходных 118, норма 1972 ч/);
+  await context.close();
+});
+
+test('home: the clock is an electronic seven-segment display', async () => {
+  const { page, context } = await openPage({ time: NOW });
+  assert.equal(await page.locator('#dial, #dialTicks, #handHour').count(), 0, 'no analog dial');
+  assert.equal(await page.locator('#clockTime .dg').count(), 6);
+  assert.equal(await page.locator('#clockTime .colon').count(), 2);
+  const lit = i => page.locator('#clockTime .dg').nth(i).locator('.s.on').count();
+  // 10:15 → цифры 1, 0, 1, 5: у «1» горят 2 сегмента, у «0» — 6, у «5» — 5.
+  assert.deepEqual([await lit(0), await lit(1), await lit(2), await lit(3)], [2, 6, 2, 5]);
+  assert.equal(await page.getAttribute('#clockTime .dg:nth-of-type(1)', 'data-d'), '1');
+  // Двоеточие рисуется двумя светящимися точками, а не текстом.
+  const dots = await page.$eval('#clockTime .colon', el => [getComputedStyle(el, '::before').width, getComputedStyle(el, '::after').width]);
+  assert.ok(dots.every(w => parseFloat(w) > 2), `colon dots are visible: ${dots}`);
+  // Секунды обновляются: цифры сегментов меняются, текст для скринридеров не расходится с ними.
+  assert.match(await page.textContent('#clockTime'), /^10:15:\d\d$/);
+  await context.close();
+});
+
+test('home: calendar days are rounded squares, not circles', async () => {
+  const { page, context } = await openPage({ time: NOW });
+  const radius = await page.$eval('.cal-day', el => getComputedStyle(el).borderTopLeftRadius);
+  assert.equal(radius, '12px');
+  const { width, height } = await page.$eval('.cal-day', el => el.getBoundingClientRect().toJSON());
+  assert.ok(width > 0 && Math.abs(width - height) < width * 0.2, `roughly square: ${width}x${height}`);
+  await context.close();
+});
+
+test('home: calendar shows ISO week numbers and weekly norm hours; month strip jumps to a month', async () => {
+  const { page, context } = await openPage({ time: NOW });
+  const rows = await page.locator('.cal-grid .wk:not(.cal-head)').allTextContents();
+  assert.deepEqual(rows, ['44', '45', '46', '47', '48', '49']);
+  // Неделя 2–8 ноября: пн 8 + вт 7 (сокращённый) + ср 0 (праздник) + чт 8 + пт 8 = 31 ч.
+  assert.deepEqual(await page.locator('.cal-grid .wk-h:not(.cal-head)').allTextContents(), ['40', '31', '40', '40', '40', '40']);
+  await page.click('#calMonths [data-month="2"]');
+  assert.equal(await page.textContent('#calMonth'), 'Март 2026');
+  assert.equal(await page.getAttribute('#calMonths [data-month="2"]', 'aria-pressed'), 'true');
   await context.close();
 });
 
@@ -199,7 +242,8 @@ test('home: 2027 calendar shows the working Saturday, transfers and month norm',
   assert.match(saturday, /k-extra-work/);
   assert.match(saturday, /is-short/);
   assert.match(await page.getAttribute('.cal-day[data-key="2027-02-22"]', 'class'), /k-transfer/);
-  assert.match(await page.textContent('#calStats'), /рабочих дней 19, выходных и праздничных 9, норма 151 ч/);
+  const stat = k => page.textContent(`.stat[data-k="${k}"] b`);
+  assert.deepEqual([await stat('work'), await stat('off'), await stat('hours')], ['19', '9', '151']);
   await page.click('#calToday');
   assert.equal(await page.textContent('#calMonth'), 'Ноябрь 2026');
   await context.close();
@@ -217,32 +261,92 @@ test('home: calendar days are reachable with the keyboard', async () => {
   await context.close();
 });
 
+const taskCount = (page, n) => page.waitForFunction(count => document.querySelectorAll('.task').length === count, n);
+
 test('home: tasks can be added, completed, deleted and survive a reload', async () => {
-  const { page, context } = await openPage({ time: NOW });
+  const { page, context } = await openPage({ time: NOW, avatarHidden: true });
   await page.fill('#taskText', 'Купить хлеб'); await page.press('#taskText', 'Enter');
   await page.fill('#taskText', 'Оплатить интернет'); await page.fill('#taskDate', '2026-11-10'); await page.click('#taskAdd');
-  assert.equal(await page.locator('.task').count(), 2);
+  await taskCount(page, 2);
   assert.equal(await page.inputValue('#taskDate'), '', 'the date does not stick to the next task');
   assert.equal(await page.textContent('#tasksCount'), 'Осталось: 2');
   assert.equal(await page.locator('.cal-day[data-key="2026-11-10"].has-tasks').count(), 1);
   await page.reload();
-  assert.equal(await page.locator('.task').count(), 2);
+  await taskCount(page, 2);
   await page.locator('.task', { hasText: 'Купить хлеб' }).locator('input[type=checkbox]').click();
-  assert.equal(await page.locator('.task').count(), 1);
+  await taskCount(page, 1); // выполненное уходит из «Активных» после короткой анимации
+  assert.equal(await page.textContent('#ringText'), '50%');
   await page.click('#taskFilter [data-v="done"]');
-  assert.equal(await page.locator('.task').count(), 1);
+  await taskCount(page, 1);
   assert.equal(await page.textContent('.task-text'), 'Купить хлеб');
   await page.click('#taskClearDone');
-  assert.equal(await page.locator('.task').count(), 0);
+  await taskCount(page, 0);
   await page.click('#taskFilter [data-v="active"]');
   await page.locator('.task', { hasText: 'Оплатить интернет' }).locator('.task-del').click();
-  assert.equal(await page.locator('.task').count(), 0);
-  assert.equal(await page.getAttribute('.task-empty', 'hidden'), null);
+  await taskCount(page, 0);
+  assert.equal(await page.isVisible('#taskEmpty'), true);
+  assert.equal(await page.textContent('#ringText'), '0%');
+  await context.close();
+});
+
+test('home: tasks are grouped by due date and quick date chips fill the date', async () => {
+  const { page, context } = await openPage({ time: NOW, avatarHidden: true });
+  await page.fill('#taskText', 'Просроченное'); await page.fill('#taskDate', '2026-11-01'); await page.click('#taskAdd');
+  await page.fill('#taskText', 'На сегодня'); await page.click('#dateChips [data-d="0"]');
+  assert.equal(await page.inputValue('#taskDate'), '2026-11-04');
+  assert.equal(await page.getAttribute('#dateChips [data-d="0"]', 'aria-pressed'), 'true');
+  await page.click('#taskAdd');
+  await page.fill('#taskText', 'На завтра'); await page.click('#dateChips [data-d="1"]'); await page.click('#taskAdd');
+  await page.fill('#taskText', 'Через неделю'); await page.click('#dateChips [data-d="7"]'); await page.click('#taskAdd');
+  await page.fill('#taskText', 'Когда-нибудь'); await page.click('#taskAdd');
+  await taskCount(page, 5);
+  assert.deepEqual(await page.locator('.task-group span').allTextContents(), ['Просрочено', 'Сегодня', 'Завтра', 'Позже', 'Без срока']);
+  assert.equal(await page.locator('.tile.is-late').count(), 1);
+  assert.equal(await page.inputValue('#taskDate'), '', 'date is cleared after adding');
+  await context.close();
+});
+
+test('home: priorities sort tasks first and tabs split today from upcoming', async () => {
+  const { page, context } = await openPage({ time: NOW, avatarHidden: true });
+  const add = async (text, chip, prio) => {
+    await page.fill('#taskText', text);
+    if (chip !== null) await page.click(`#dateChips [data-d="${chip}"]`);
+    if (prio) await page.click(`#prioPick [data-p="${prio}"]`);
+    await page.click('#taskAdd');
+  };
+  await add('Обычное', 0, 0);
+  await add('Срочное', 0, 2);
+  await add('Важное', 0, 1);
+  await add('На завтра', 1, 0);
+  await taskCount(page, 4);
+  assert.deepEqual(await page.locator('.task-text').allTextContents(), ['Срочное', 'Важное', 'Обычное', 'На завтра']);
+  assert.deepEqual(await page.locator('.tag').allTextContents(), ['Срочно', 'Важно']);
+  assert.equal(await page.getAttribute('#prioPick [data-p="0"]', 'aria-pressed'), 'true', 'priority resets after adding');
+  const counts = async () => page.locator('#taskFilter em').allTextContents();
+  assert.deepEqual(await counts(), ['4', '3', '1', '0']);
+  await page.click('#taskFilter [data-v="today"]');
+  await taskCount(page, 3);
+  await page.click('#taskFilter [data-v="soon"]');
+  await taskCount(page, 1);
+  assert.equal(await page.textContent('.task-text'), 'На завтра');
+  await context.close();
+});
+
+test('home: a task can be edited in place', async () => {
+  const { page, context } = await openPage({ time: NOW, avatarHidden: true });
+  await page.fill('#taskText', 'Старый текст'); await page.press('#taskText', 'Enter');
+  await page.hover('.task'); await page.click('.task-edit');
+  await page.fill('.task-edit-input', 'Новый текст'); await page.press('.task-edit-input', 'Enter');
+  assert.equal(await page.textContent('.task-text'), 'Новый текст');
+  await page.click('.task-edit'); await page.fill('.task-edit-input', 'Не сохранять'); await page.press('.task-edit-input', 'Escape');
+  assert.equal(await page.textContent('.task-text'), 'Новый текст');
+  await page.reload(); await taskCount(page, 1);
+  assert.equal(await page.textContent('.task-text'), 'Новый текст');
   await context.close();
 });
 
 test('home: a calendar day offers its own tasks', async () => {
-  const { page, context } = await openPage({ time: NOW });
+  const { page, context } = await openPage({ time: NOW, avatarHidden: true });
   await page.fill('#taskText', 'День рождения'); await page.fill('#taskDate', '2026-11-20'); await page.click('#taskAdd');
   await page.fill('#taskText', 'Без даты'); await page.click('#taskAdd');
   await page.click('.cal-day[data-key="2026-11-20"]');
@@ -251,7 +355,7 @@ test('home: a calendar day offers its own tasks', async () => {
   assert.equal(await page.locator('.task').count(), 1);
   assert.equal(await page.textContent('.task-text'), 'День рождения');
   await page.click('#dayFilterClear');
-  assert.equal(await page.locator('.task').count(), 2);
+  await taskCount(page, 2);
   await context.close();
 });
 
@@ -276,5 +380,14 @@ test('without an avatar the chat opens from a launcher button and is closed by d
   assert.equal(await page.isVisible('#chatPanel'), true);
   await page.click('#chatClose');
   assert.equal(await page.isVisible('#chatPanel'), false);
+  await context.close();
+});
+
+test('the floating avatar keeps clear of the bottom-right task controls until the chat opens', async () => {
+  const { page, context } = await openPage({ time: NOW });
+  const bottomGap = () => page.evaluate(() => innerHeight - document.getElementById('yatsumiAvatar').getBoundingClientRect().bottom);
+  assert.ok(Math.abs(await bottomGap() - 20) < 8, 'sits near the corner while the chat is closed');
+  await openChat(page);
+  await page.waitForFunction(() => innerHeight - document.getElementById('yatsumiAvatar').getBoundingClientRect().bottom > 90);
   await context.close();
 });

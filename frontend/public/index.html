@@ -9,53 +9,78 @@
 <script src="/theme-boot.js"></script>
 </head>
 <body>
+<div class="fx" aria-hidden="true"><i></i><i></i><i></i></div>
 <div class="app">
   <main class="dash" id="dash" aria-label="Главная">
-    <section class="card clock-card" id="clockCard" aria-label="Часы">
-      <div class="clock-time" id="clockTime" aria-hidden="true"></div>
-      <div class="clock-date" id="clockDate"></div>
-      <div class="clock-sub" id="clockSub"></div>
-    </section>
+    <div class="card hero" id="heroCard">
+      <section class="clock-part" id="clockCard" aria-label="Часы">
+        <div class="clock-info">
+          <div class="lcd" aria-hidden="true"><div class="clock-time" id="clockTime"></div></div>
+          <div class="clock-date" id="clockDate"></div>
+          <div class="clock-sub" id="clockSub"></div>
+          <div class="day-progress"><div class="dp-bar"><i id="dayBar"></i></div><span id="dayText"></span></div>
+        </div>
+      </section>
 
-    <section class="card calendar-card" id="calendarCard" aria-labelledby="calTitle">
-      <div class="card-head">
-        <h2 id="calTitle">Производственный календарь</h2>
-        <div class="segmented small" id="calYear" role="group" aria-label="Год"><button type="button" data-year="2026">2026</button><button type="button" data-year="2027">2027</button></div>
-      </div>
-      <div class="cal-nav">
-        <button type="button" class="icon-button small" id="calPrev" aria-label="Предыдущий месяц"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
-        <div class="cal-month" id="calMonth" aria-live="polite"></div>
-        <button type="button" class="icon-button small" id="calNext" aria-label="Следующий месяц"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
-        <button type="button" class="link-button" id="calToday">Сегодня</button>
-      </div>
-      <div class="cal-grid" id="calGrid" role="group" aria-labelledby="calMonth"></div>
-      <ul class="legend" aria-label="Обозначения">
-        <li><i class="sw holiday"></i>Праздник</li>
-        <li><i class="sw transfer"></i>Перенесённый выходной</li>
-        <li><i class="sw weekend"></i>Выходной</li>
-        <li><i class="sw short"></i>Сокращённый день</li>
-        <li><i class="sw extra"></i>Рабочая суббота</li>
-      </ul>
-      <div class="cal-stats" id="calStats"></div>
-      <div class="cal-detail" id="calDetail" role="status"></div>
-      <ul class="cal-notes" id="calNotes"></ul>
-    </section>
+      <section class="calendar-part" id="calendarCard" aria-labelledby="calTitle">
+        <div class="card-head">
+          <h2 id="calTitle">Производственный календарь</h2>
+          <div class="segmented small" id="calYear" role="group" aria-label="Год"><button type="button" data-year="2026">2026</button><button type="button" data-year="2027">2027</button></div>
+        </div>
+        <div class="months" id="calMonths" role="group" aria-label="Месяц"></div>
+        <div class="cal-nav">
+          <button type="button" class="icon-button small" id="calPrev" aria-label="Предыдущий месяц"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+          <div class="cal-month" id="calMonth" aria-live="polite"></div>
+          <button type="button" class="icon-button small" id="calNext" aria-label="Следующий месяц"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+          <button type="button" class="link-button" id="calToday">Сегодня</button>
+        </div>
+        <div class="cal-grid" id="calGrid" role="group" aria-labelledby="calMonth"></div>
+        <ul class="legend" aria-label="Обозначения">
+          <li><i class="sw holiday"></i>Праздник</li>
+          <li><i class="sw transfer"></i>Перенесённый выходной</li>
+          <li><i class="sw weekend"></i>Выходной</li>
+          <li><i class="sw short"></i>Сокращённый день</li>
+          <li><i class="sw extra"></i>Рабочая суббота</li>
+        </ul>
+        <div class="cal-stats" id="calStats"></div>
+        <div class="cal-detail" id="calDetail" role="status"></div>
+        <ul class="cal-notes" id="calNotes"></ul>
+      </section>
+    </div>
 
     <section class="card tasks-card" id="tasksCard" aria-labelledby="tasksTitle">
       <div class="card-head">
-        <h2 id="tasksTitle">Дела</h2>
-        <span class="small-note" id="tasksCount"></span>
+        <div class="tasks-title"><h2 id="tasksTitle">Дела</h2><span class="small-note" id="tasksCount"></span></div>
+        <div class="ring" id="tasksRing" role="img" aria-label="Выполнено 0%">
+          <svg viewBox="0 0 44 44" aria-hidden="true"><circle class="ring-bg" cx="22" cy="22" r="18"/><circle class="ring-fg" id="ringFg" cx="22" cy="22" r="18" pathLength="100"/></svg>
+          <span id="ringText">0%</span>
+        </div>
       </div>
       <form class="task-form" id="taskForm">
-        <input id="taskText" type="text" maxlength="300" placeholder="Новое дело…" aria-label="Новое дело" autocomplete="off">
-        <input id="taskDate" type="date" aria-label="Срок (необязательно)" title="Срок (необязательно)">
-        <button class="primary" type="submit" id="taskAdd">Добавить</button>
+        <div class="task-input">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          <input id="taskText" type="text" maxlength="300" placeholder="Новое дело…" aria-label="Новое дело" autocomplete="off">
+          <button class="send" type="submit" id="taskAdd" aria-label="Добавить дело" title="Добавить дело"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/></svg></button>
+        </div>
+        <div class="task-meta">
+          <div class="chips" id="dateChips" role="group" aria-label="Срок"><button type="button" data-d="0">Сегодня</button><button type="button" data-d="1">Завтра</button><button type="button" data-d="7">Через неделю</button></div>
+          <input id="taskDate" type="date" aria-label="Срок (необязательно)" title="Срок (необязательно)">
+          <div class="prio-pick" id="prioPick" role="group" aria-label="Важность"><button type="button" data-p="0">Обычное</button><button type="button" data-p="1">Важно</button><button type="button" data-p="2">Срочно</button></div>
+        </div>
       </form>
-      <div class="segmented small" id="taskFilter" role="group" aria-label="Фильтр дел"><button type="button" data-v="active">Активные</button><button type="button" data-v="done">Выполненные</button><button type="button" data-v="all">Все</button></div>
+      <div class="task-tabs" id="taskFilter" role="group" aria-label="Фильтр дел">
+        <button type="button" data-v="active">Все <em></em></button>
+        <button type="button" data-v="today">Сегодня <em></em></button>
+        <button type="button" data-v="soon">Скоро <em></em></button>
+        <button type="button" data-v="done">Готово <em></em></button>
+      </div>
       <div class="day-filter" id="dayFilter" hidden><span id="dayFilterText"></span><button type="button" class="link-button" id="dayFilterClear">Показать все дни</button></div>
       <ul class="task-list" id="taskList"></ul>
-      <p class="task-empty" id="taskEmpty" hidden></p>
-      <div class="row-actions"><button type="button" class="link-button" id="taskClearDone" hidden>Удалить выполненные</button></div>
+      <div class="task-empty" id="taskEmpty" hidden>
+        <svg viewBox="0 0 48 48" width="56" height="56" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="7" width="30" height="35" rx="5"/><path d="M17 7V5h14v2M17 21l4 4 9-9M17 33h14"/></svg>
+        <p id="taskEmptyText"></p>
+      </div>
+      <button type="button" class="link-button clear-done" id="taskClearDone" hidden>Удалить выполненные</button>
     </section>
   </main>
   <section class="chat" id="chatPanel" aria-label="Чат с Яцуми">
