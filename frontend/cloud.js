@@ -51,6 +51,8 @@ export function createCloudService({ fetchImpl = fetch, timeoutMs = 12000 } = {}
         // Confirm API reachability and model presence; generation is verified on first chat.
         await this.listModels();
         if (!models.some(item => item.id === selected)) throw new Error('Модель больше недоступна');
+        const probe = await call('/chat/completions', { method: 'POST', body: JSON.stringify({ model: selected, messages: [{ role: 'user', content: 'Ответь одним словом: готово' }], max_tokens: 12 }) });
+        if (typeof probe?.choices?.[0]?.message?.content !== 'string') throw new Error('Модель не ответила на проверку');
         connected = true; lastError = '';
         return status();
       } catch (error) { connected = false; lastError = error.message; throw error; }
