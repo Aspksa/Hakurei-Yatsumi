@@ -65,7 +65,7 @@ fileInput.addEventListener('change', async () => {
     }
     showImage(url);
     url = null;
-    message.textContent = 'Аватар сохранён в папке проекта.';
+    message.textContent = 'Аватар сохранён.';
   } catch (error) {
     message.textContent = 'Не удалось сохранить аватар: ' + error.message;
   } finally {

@@ -2,54 +2,103 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Hakurei Yatsumi — Cloud AI</title>
+<meta name="theme-color" content="#000000">
+<title>Хакурэй Яцуми</title>
+<link rel="preload" href="/fonts/cormorant-garamond-cyrillic-600-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<div class="shell">
-  <aside class="rail">
-    <div class="mark">八</div>
-    <div class="rail-bottom"><span class="fox">狐</span></div>
-  </aside>
-  <div class="workspace">
-    <header class="topbar">
-      <div class="brand"><div class="brand-title">HAKUREI <span>YATSUMI</span></div><div class="brand-sub">CLOUD INTELLIGENCE · 八尾の狐</div></div>
-      <div class="top-actions">
-        <div class="connection" aria-live="polite"><span id="headerDot" class="dot red"></span><span id="headerStatus">Не подключено</span></div>
-        <button id="settingsOpen" class="icon-button" aria-label="Настройки программы" title="Настройки программы">
-          <svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2h4l.7 2.4 2 .8 2.2-1.2 2.8 2.8-1.2 2.2.8 2L23 11v4l-2.5.7-.8 2 1.2 2.2-2.8 2.8-2.2-1.2-2 .8L14 25h-4l-.7-2.5-2-.8-2.2 1.2-2.8-2.8 1.2-2.2-.8-2L.5 15v-4L3 10.3l.8-2-1.2-2.2 2.8-2.8 2.2 1.2 2-.8L10 2Z" transform="translate(.25 -1.5) scale(.96)"/><circle cx="12" cy="12" r="3.3"/></svg>
+<div class="app">
+  <main class="chat" id="chatPanel" aria-label="Чат с Яцуми">
+    <div class="chat-head">
+      <div class="connection" aria-live="polite"><span id="headerDot" class="dot red"></span><span id="headerStatus">Не подключено</span></div>
+      <div class="chat-head-actions">
+        <button id="settingsOpen" class="icon-button" aria-label="Настройки" title="Настройки">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2h4l.7 2.4 2 .8 2.2-1.2 2.8 2.8-1.2 2.2.8 2L23 11v4l-2.5.7-.8 2 1.2 2.2-2.8 2.8-2.2-1.2-2 .8L14 25h-4l-.7-2.5-2-.8-2.2 1.2-2.8-2.8 1.2-2.2-.8-2L.5 15v-4L3 10.3l.8-2-1.2-2.2 2.8-2.8 2.2 1.2 2-.8L10 2Z" transform="translate(.25 -1.5) scale(.96)"/><circle cx="12" cy="12" r="3.3"/></svg>
+    </button>
+        <button id="chatClose" class="icon-button" aria-label="Закрыть чат" title="Закрыть чат">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
         </button>
       </div>
-    </header>
-    <main class="main">
-      <section id="welcome" class="welcome">
-        <div class="halo"><div class="kanji">八</div><div class="halo-ring"></div></div>
-        <p class="eyebrow">YOUR INTELLIGENT COMPANION</p>
-        <h1>Привет, я <em>Яцуми.</em></h1>
-        <p class="intro">Твой проводник в мире идей, знаний и возможностей.<br>Подключи модель Cloud.ru, и мы начнём разговор.</p>
-        <button class="primary" id="setupStart">Настроить подключение <span>↗</span></button>
-        <div class="hint">Модели работают в облаке · локальная установка LLM не нужна</div>
-      </section>
-      <section id="conversation" class="conversation" aria-label="Чат Яцуми" role="log" tabindex="0" hidden></section>
-    </main>
-    <footer class="composer-wrap"><form id="chatForm" class="composer"><textarea id="message" rows="1" placeholder="Спроси меня о чём-нибудь…" aria-label="Сообщение" maxlength="8000"></textarea><button id="send" type="submit" aria-label="Отправить" disabled>↑</button></form><p id="chatNotice" class="chat-notice" role="status" hidden></p><div class="footer-note">HAKUREI-YATSUMI <span>•</span> POWERED BY CLOUD.RU FOUNDATION MODELS</div></footer>
-  </div>
+    </div>
+    <section id="conversation" class="conversation" aria-label="Чат Яцуми" role="log" tabindex="0"></section>
+    <form id="chatForm" class="composer">
+      <textarea id="message" rows="1" placeholder="Напиши сообщение Яцуми…" aria-label="Сообщение" maxlength="8000"></textarea>
+      <button id="send" type="submit" aria-label="Отправить" disabled>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/></svg>
+      </button>
+    </form>
+    <p id="chatNotice" class="chat-notice" role="status" hidden></p>
+  </main>
 </div>
-<button id="yatsumiAvatar" class="yatsumi-avatar" type="button" aria-label="Открыть чат Яцуми" title="Нажмите, чтобы открыть чат" hidden><img alt="" draggable="false"></button>
+
+<button id="yatsumiAvatar" class="yatsumi-avatar" type="button" aria-label="Яцуми: открыть или закрыть чат" aria-controls="chatPanel" aria-expanded="false" title="Нажмите, чтобы открыть чат" hidden><img alt="" draggable="false"></button>
+
 <dialog id="overlay" class="overlay" aria-labelledby="settingsTitle">
   <div class="scrim" id="settingsCloseBackdrop"></div>
   <section class="panel">
-    <div class="panel-head"><div><div class="eyebrow">CONFIGURATION</div><h2 id="settingsTitle">Настройки <em>Яцуми</em></h2></div><button id="settingsClose" class="close" aria-label="Закрыть">×</button></div>
+    <div class="panel-head">
+      <h2 id="settingsTitle">Настройки</h2>
+      <button id="settingsClose" class="close" aria-label="Закрыть">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
     <div id="notice" class="notice" role="status"></div>
     <div class="panel-body">
-      <div class="step"><div class="step-index">01</div><div class="step-content"><h3>API-ключ Cloud.ru</h3><p>Вставь ключ Foundation Models. Он передаётся только локальному Node-серверу и хранится в памяти процесса.</p><div class="key-input"><input id="apiKey" type="password" placeholder="Вставьте API-ключ" autocomplete="off" spellcheck="false" aria-label="API-ключ Cloud.ru" autofocus><button id="toggleKey" type="button" aria-label="Показать ключ">◉</button></div><button class="secondary" id="saveKey">Сохранить ключ</button></div></div>
-      <div class="step"><div class="step-index">02</div><div class="step-content"><h3>Выбор модели</h3><p>После сохранения ключа список моделей автоматически загрузится из Cloud.ru.</p><div class="select-wrap"><select id="modelSelect" aria-label="Модель Cloud.ru" disabled><option value="">Сначала добавьте API-ключ</option></select><button id="reloadModels" type="button" disabled title="Обновить модели" aria-label="Обновить модели">↻</button></div><div id="modelCount" class="small-note">Модели ещё не загружены</div></div></div>
-      <div class="step"><div class="step-index">03</div><div class="step-content"><h3>Подключение</h3><p>Выбери модель и активируй соединение.</p><div class="connect-row"><button class="primary" id="connectModel" disabled>Подключить модель <span>↗</span></button><div class="connection"><span id="panelDot" class="dot red"></span><span id="panelStatus">Не подключено</span></div></div></div></div>
-      <div class="step"><div class="step-index">04</div><div class="step-content"><h3>Память Яцуми</h3><p>Сохраняйте только те факты, которые хотите помнить между запусками. Данные хранятся в локальной SQLite.</p><div class="key-input"><input id="memoryKey" type="text" maxlength="128" placeholder="Название факта" aria-label="Название факта"></div><div class="key-input"><input id="memoryValue" type="text" maxlength="1000" placeholder="Что запомнить" aria-label="Что запомнить"></div><button class="secondary" id="saveMemory" type="button">Запомнить</button></div></div>
-      <div class="step"><div class="step-index">05</div><div class="step-content"><h3>Аватар Яцуми</h3><p>Выберите собственное изображение PNG, JPEG или WebP. Оно хранится локально в папке проекта и не отправляется в Cloud.ru. Нажатие на персонажа открывает чат; перетаскивание меняет его положение.</p><div class="avatar-settings-preview"><img id="avatarPreview" alt="Предпросмотр аватара Яцуми" hidden><span id="avatarPreviewEmpty">Аватар не выбран</span></div><input id="avatarFile" hidden type="file" accept="image/png,image/jpeg,image/webp" aria-label="Загрузить изображение аватара"><div class="avatar-settings-actions"><button class="secondary" id="avatarChoose" type="button">Выбрать изображение</button><button class="secondary" id="avatarReset" type="button">Сбросить аватар</button></div><div id="avatarMessage" class="small-note" role="status">Изображение сохраняется в папке проекта.</div></div></div>
-      <div id="tokenUsage" class="small-note">Токены: 0</div>
+
+      <section class="group">
+        <div class="group-head">
+          <h3>Подключение к Cloud.ru</h3>
+          <div class="connection"><span id="panelDot" class="dot red"></span><span id="panelStatus">Не подключено</span></div>
+        </div>
+        <ol class="steps">
+          <li class="step">
+            <h4>Вставьте API-ключ</h4>
+            <p>Ключ Foundation Models хранится только в памяти программы. После перезапуска его нужно ввести снова.</p>
+            <div class="field"><input id="apiKey" type="password" placeholder="API-ключ Cloud.ru" autocomplete="off" spellcheck="false" aria-label="API-ключ Cloud.ru" autofocus><button id="toggleKey" type="button" aria-label="Показать ключ">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.8"/></svg>
+            </button></div>
+            <button class="secondary" id="saveKey">Сохранить ключ</button>
+          </li>
+          <li class="step">
+            <h4>Выберите модель</h4>
+            <p>Список загрузится сам, как только ключ будет принят.</p>
+            <div class="field"><select id="modelSelect" aria-label="Модель Cloud.ru" disabled><option value="">Сначала добавьте API-ключ</option></select><button id="reloadModels" type="button" disabled title="Обновить список" aria-label="Обновить список моделей">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.4-5.7M20 4v4h-4"/></svg>
+            </button></div>
+            <div id="modelCount" class="small-note">Модели ещё не загружены</div>
+          </li>
+          <li class="step">
+            <h4>Подключите</h4>
+            <p>Яцуми отправит модели короткий проверочный запрос.</p>
+            <button class="primary" id="connectModel" disabled>Подключить модель</button>
+          </li>
+        </ol>
+      </section>
+
+      <section class="group">
+        <div class="group-head"><h3>Память</h3></div>
+        <p>Факты, которые Яцуми будет помнить между запусками. Хранятся на этом компьютере.</p>
+        <div class="field"><input id="memoryKey" type="text" maxlength="128" placeholder="Название, например «Имя»" aria-label="Название факта"></div>
+        <div class="field"><input id="memoryValue" type="text" maxlength="1000" placeholder="Что запомнить" aria-label="Что запомнить"></div>
+        <button class="secondary" id="saveMemory" type="button">Запомнить</button>
+      </section>
+
+      <section class="group">
+        <div class="group-head"><h3>Аватар</h3></div>
+        <div class="avatar-row">
+          <div class="avatar-settings-preview"><img id="avatarPreview" alt="Текущий аватар Яцуми" hidden><span id="avatarPreviewEmpty">Нет аватара</span></div>
+          <div class="avatar-side">
+            <p>PNG, JPEG или WebP до 10 МБ. Картинка остаётся на этом компьютере. Нажатие на аватар открывает чат, перетаскивание меняет его место.</p>
+            <input id="avatarFile" hidden type="file" accept="image/png,image/jpeg,image/webp" aria-label="Загрузить изображение аватара">
+            <div class="avatar-settings-actions"><button class="secondary" id="avatarChoose" type="button">Выбрать изображение</button><button class="link-button" id="avatarReset" type="button">Вернуть стандартный</button></div>
+            <div id="avatarMessage" class="small-note" role="status"></div>
+          </div>
+        </div>
+      </section>
+
     </div>
-    <div class="panel-foot"><span>Cloud.ru · OpenAI-compatible API</span><button id="forgetKey" class="link-button">Сбросить ключ</button></div>
+    <div class="panel-foot"><span id="tokenUsage" class="small-note">Токены: 0</span><button id="forgetKey" class="link-button">Сбросить ключ</button></div>
   </section>
 </dialog>
 <script type="module" src="/app.js"></script>

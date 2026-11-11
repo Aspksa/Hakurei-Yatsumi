@@ -1,135 +1,150 @@
-:root{font-family:Inter,"Segoe UI",Arial,sans-serif;color:#e8e6f1;background:#0b0c13;font-synthesis:none}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse 60% 70% at 48% 40%,#171425 0%,#0b0c13 75%)}button,input,select,textarea{font:inherit}button{cursor:pointer}button:disabled{opacity:.4;cursor:not-allowed}.shell{display:flex;min-height:100vh}.rail{width:78px;border-right:1px solid #252330;background:#0d0d15;display:flex;flex-direction:column;align-items:center;padding:30px 0}.mark{font-family:serif;font-size:32px;color:#bda1ef}.rail-bottom{margin-top:auto;color:#665879}.fox{font-size:27px}.workspace{flex:1;min-width:0;display:flex;flex-direction:column}.topbar{height:104px;padding:0 6%;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #211e2d}.brand-title{font-size:16px;letter-spacing:.25em;font-weight:750}.brand-title span{color:#b79be9}.brand-sub{font-size:9px;letter-spacing:.28em;color:#777185;margin-top:7px}.top-actions{display:flex;gap:30px;align-items:center}.connection{display:flex;align-items:center;gap:10px;color:#aaa4b9;font-size:12px;white-space:nowrap}.dot{width:9px;height:9px;display:inline-block;border-radius:50%;box-shadow:0 0 14px currentColor}.red{color:#ed6479;background:#ed6479}.green{color:#69dba3;background:#69dba3}.icon-button{border:1px solid #393148;border-radius:13px;background:#201b2c;color:#c9b2ef;width:46px;height:46px;display:grid;place-items:center}.icon-button:hover{background:#31263f}.main{flex:1;display:flex;justify-content:center;align-items:center;padding:32px 20px;min-height:0}.welcome{text-align:center;max-width:650px}.halo{position:relative;width:154px;height:154px;border-radius:50%;margin:0 auto 36px;display:grid;place-items:center;background:radial-gradient(circle,#382648 0%,#1b172a 57%,transparent 70%);box-shadow:0 0 90px #7c4b9c30}.halo-ring{position:absolute;inset:11px;border:1px solid #a881c64d;border-radius:50%}.kanji{font-size:72px;color:#d3b7ef;font-family:serif;text-shadow:0 0 28px #c38bfa88}.eyebrow{font-size:10px;letter-spacing:.3em;color:#b99ad8;font-weight:700}.welcome h1{font-size:clamp(32px,5vw,56px);letter-spacing:-.04em;margin:20px 0}.welcome h1 em,.panel h2 em{font-style:normal;color:#c1a0ec}.intro{color:#aaa5b7;font-size:15px;line-height:1.9}.primary{background:linear-gradient(125deg,#a47bd4,#7354b2);color:white;border:0;border-radius:12px;padding:15px 24px;font-weight:650;margin-top:22px}.primary span{margin-left:18px}.primary:hover{filter:brightness(1.13)}.hint{color:#696375;font-size:11px;margin-top:24px}.composer-wrap{padding:10px 6% 24px}.composer{display:flex;gap:12px;align-items:center;max-width:850px;margin:auto;background:#1c1927;border:1px solid #383047;border-radius:17px;padding:11px 13px 11px 20px}.composer textarea{background:none;border:0;outline:0;resize:none;flex:1;color:white;min-height:30px;max-height:140px}.composer textarea::placeholder{color:#736c81}.composer button{width:36px;height:36px;border:0;border-radius:10px;background:#9b76d3;color:#fff;font-size:22px}.footer-note{text-align:center;margin-top:15px;font-size:9px;letter-spacing:.19em;color:#696274}.footer-note span{color:#ac8dd3}.overlay{position:fixed;inset:0;width:100%;height:100%;max-width:none;max-height:none;margin:0;padding:0;border:0;background:transparent;color:inherit;display:flex;justify-content:flex-end}.overlay:not([open]),[hidden]{display:none!important}.scrim{position:absolute;inset:0;background:#000a;backdrop-filter:blur(5px)}.panel{position:relative;width:min(480px,100vw);height:100%;background:#15121e;border-left:1px solid #3c314c;box-shadow:-24px 0 80px #0008;display:flex;flex-direction:column}.panel-head{display:flex;justify-content:space-between;align-items:center;padding:40px 34px 26px;border-bottom:1px solid #2c2538}.panel h2{font-size:29px;margin:11px 0 0}.close{background:#2a2235;color:#b6a9c7;border:0;border-radius:10px;width:35px;height:35px;font-size:25px}.panel-body{padding:30px 34px;overflow:auto;flex:1}.step{display:flex;gap:20px;padding:0 0 34px;margin-bottom:30px;border-bottom:1px solid #2b2536}.step-index{color:#9e7cc9;font-size:12px;font-weight:700;padding-top:4px}.step-content{flex:1;min-width:0}.step h3{margin:0;font-size:16px}.step p{font-size:12px;line-height:1.8;color:#938b9f}.key-input,.select-wrap{display:flex;background:#211b2c;border:1px solid #423650;border-radius:11px;overflow:hidden;margin-top:18px}.key-input input,.select-wrap select{background:transparent;border:0;outline:0;color:#eee;width:100%;padding:14px 12px;min-width:0;font-size:12px}.select-wrap select option{background:#211b2c}.key-input button,.select-wrap button{background:transparent;border:0;color:#c2a5e4;padding:0 14px}.secondary{margin-top:12px;background:#312641;color:#d4baf4;border:1px solid #56426e;padding:11px 18px;border-radius:9px;font-size:12px}.small-note{font-size:11px;color:#81788d;margin-top:10px}.connect-row{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.connect-row .primary{margin-top:12px;font-size:12px;padding:13px}.notice{font-size:12px;line-height:1.6;color:#bba4da;min-height:20px}.panel-foot{border-top:1px solid #30283c;padding:24px 34px;display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#81768e}.link-button{background:none;border:0;color:#c8a4e7;font-size:11px}.conversation{width:min(800px,100%);align-self:stretch;overflow:auto;display:flex;flex-direction:column;gap:18px;padding:20px 0}.bubble{padding:15px 19px;border-radius:16px;max-width:85%;line-height:1.7;white-space:pre-wrap;font-size:14px}.bubble.user{align-self:flex-end;background:#3a2a50}.bubble.assistant{align-self:flex-start;background:#201b2b;border:1px solid #362d43}@media(max-width:650px){.rail{width:45px}.topbar{height:80px;padding:0 18px}.brand-title{font-size:12px}.brand-sub{font-size:8px}.top-actions{gap:12px}.top-actions .connection{font-size:0}.panel-head,.panel-body,.panel-foot{padding-left:22px;padding-right:22px}.composer-wrap{padding:10px 14px 20px}.welcome{padding-top:20px}}
+/* Hakurei Yatsumi — чёрный и золото.
+   Фон всегда чистый #000. Всё остальное — оттенки золота; цветом отмечено только состояние связи. */
 
-/* Movable character avatar; position is controlled by pointer events, not the image drag API. */
-.yatsumi-avatar{position:fixed;z-index:8;right:22px;bottom:112px;width:clamp(110px,15vw,210px);height:clamp(125px,19vw,250px);padding:0;border:0;background:transparent;cursor:grab;touch-action:none;user-select:none;filter:drop-shadow(0 8px 18px #0009);transition:filter .15s ease}
-.yatsumi-avatar:hover,.yatsumi-avatar:focus-visible{filter:drop-shadow(0 4px 20px #e7b96b88);outline:none}
-.yatsumi-avatar:focus-visible{outline:2px solid #d8b3ff;outline-offset:3px;border-radius:12px}
+@font-face{font-family:"Cormorant Garamond";font-weight:500;font-style:normal;font-display:swap;src:url(/fonts/cormorant-garamond-cyrillic-500-normal.woff2) format("woff2");unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
+@font-face{font-family:"Cormorant Garamond";font-weight:500;font-style:normal;font-display:swap;src:url(/fonts/cormorant-garamond-latin-500-normal.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Cormorant Garamond";font-weight:600;font-style:normal;font-display:swap;src:url(/fonts/cormorant-garamond-cyrillic-600-normal.woff2) format("woff2");unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
+@font-face{font-family:"Cormorant Garamond";font-weight:600;font-style:normal;font-display:swap;src:url(/fonts/cormorant-garamond-latin-600-normal.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+
+:root{
+  --black:#000;
+  --ink:#0a0804;            /* поверхности поверх чёрного */
+  --ink-raised:#130f07;
+  --gold:#d4af37;           /* основное золото */
+  --gold-light:#f6e19a;     /* блик */
+  --gold-pale:#fff4cf;
+  --gold-deep:#8f6b1a;      /* тень металла */
+  --text:#f0dfae;           /* основной текст */
+  --muted:#a89257;          /* вторичный текст */
+  --line:#3b2d0f;           /* тонкие линии */
+  --line-strong:#6f5519;
+  --metal:linear-gradient(135deg,#8f6b1a 0%,#e6c35c 20%,#fff4cf 38%,#d4af37 56%,#9a7420 78%,#ecd07a 100%);
+  --ok:#5fd39a;
+  --bad:#e2596b;
+  --display:"Cormorant Garamond","Palatino Linotype",Georgia,serif;
+  --body:"Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  font-family:var(--body);
+  font-size:clamp(15px,.9rem + .1vw,17px);
+  line-height:1.55;
+  color:var(--text);
+  background:var(--black);
+  color-scheme:dark;
+  font-synthesis:none;
+  -webkit-text-size-adjust:100%;text-size-adjust:100%;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;min-height:100dvh;background:var(--black);overflow:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+button:disabled{opacity:.38;cursor:not-allowed}
+p{margin:0}
+:focus-visible{outline:2px solid var(--gold-light);outline-offset:3px}
+::selection{background:var(--gold);color:#000}
+*{scrollbar-color:var(--line-strong) transparent;scrollbar-width:thin}
+
+/* ---------- каркас: на странице только аватар; чат открывается окном ---------- */
+.connection{display:flex;align-items:center;gap:9px;color:var(--muted);font-size:.86rem;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;flex:none}
+.dot.red{background:var(--bad);box-shadow:0 0 0 3px #e2596b22}
+.dot.green{background:var(--ok);box-shadow:0 0 0 3px #5fd39a22,0 0 12px #5fd39a88}
+.icon-button,.close{display:grid;place-items:center;width:42px;height:42px;border:1px solid var(--line-strong);border-radius:50%;background:var(--black);color:var(--gold);transition:border-color .15s,color .15s,background .15s}
+.icon-button:hover,.close:hover{border-color:var(--gold);color:var(--gold-pale);background:var(--ink-raised)}
+
+.chat{display:none;position:fixed;z-index:6;top:50%;left:50%;transform:translate(-50%,-50%);width:min(100vw - 32px,760px);height:min(100dvh - 48px,780px);flex-direction:column;padding:14px clamp(14px,2.4vw,24px) 18px;background:var(--black);border:1px solid var(--gold-deep);border-radius:22px;box-shadow:0 0 90px -22px #d4af3766}
+.chat.is-open,body:has(#yatsumiAvatar[hidden]) .chat{display:flex}
+body:has(#yatsumiAvatar[hidden]) #chatClose{display:none}
+@media(prefers-reduced-motion:no-preference){
+  .chat.is-open{animation:chat-in .2s cubic-bezier(.2,.8,.2,1)}
+  @keyframes chat-in{from{opacity:0;transform:translate(-50%,calc(-50% + 10px)) scale(.985)}to{opacity:1;transform:translate(-50%,-50%)}}
+}
+.chat-head{flex:none;display:flex;justify-content:space-between;align-items:center;gap:12px;padding-bottom:12px;margin-bottom:6px;border-bottom:1px solid var(--line)}
+.chat-head-actions{display:flex;gap:10px}
+.chat-head .icon-button{width:38px;height:38px}
+
+/* ---------- кнопки ---------- */
+.primary{border:0;border-radius:999px;padding:.82em 1.7em;background:var(--metal);background-size:160% 100%;background-position:0 0;color:#120c00;font-weight:650;letter-spacing:.01em;box-shadow:0 0 0 1px #fff4cf40 inset,0 10px 34px -12px #d4af3799;transition:background-position .35s,box-shadow .2s}
+.primary:hover:not(:disabled){background-position:100% 0;box-shadow:0 0 0 1px #fff4cf66 inset,0 12px 40px -10px #d4af37cc}
+.secondary{border:1px solid var(--gold);border-radius:999px;padding:.62em 1.3em;background:transparent;color:var(--gold-light);font-weight:600;transition:background .15s,color .15s}
+.secondary:hover:not(:disabled){background:var(--gold);color:#120c00}
+.link-button{border:0;background:none;padding:.4em 0;color:var(--muted);text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:4px}
+.link-button:hover:not(:disabled){color:var(--gold-light);text-decoration-color:var(--gold)}
+
+/* ---------- чат ---------- */
+.conversation{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:14px;padding:4px 4px 18px;outline-offset:-2px}
+.conversation>:first-child{margin-top:auto}
+.bubble{flex:none;max-width:88%;padding:.72em 1.05em;white-space:pre-wrap;overflow-wrap:anywhere;border-radius:18px}
+.bubble.assistant{align-self:flex-start;background:var(--ink);border:1px solid var(--line);border-bottom-left-radius:5px;color:var(--text)}
+.bubble.user{align-self:flex-end;background:linear-gradient(160deg,#f6e19a 0%,#d4af37 55%,#b48a25 100%);color:#140d00;font-weight:500;border-bottom-right-radius:5px}
+.composer{flex:none;display:flex;align-items:center;gap:10px;padding:8px 8px 8px 22px;background:var(--ink);border:1px solid var(--line-strong);border-radius:999px;transition:border-color .15s,box-shadow .15s}
+.composer:focus-within{border-color:var(--gold);box-shadow:0 0 0 4px #d4af371f}
+.composer textarea{flex:1;min-width:0;min-height:1.6em;max-height:140px;padding:0;border:0;outline:0;resize:none;background:none;color:var(--gold-pale);font-size:16px;line-height:1.6;white-space:pre-wrap}
+.composer textarea::placeholder{color:var(--muted);white-space:nowrap}
+.composer button{flex:none;display:grid;place-items:center;width:42px;height:42px;border:0;border-radius:50%;background:var(--metal);color:#120c00}
+.composer button:disabled{background:var(--ink-raised);color:var(--muted);opacity:1;box-shadow:0 0 0 1px var(--line) inset}
+.chat-notice{flex:none;max-height:3.2em;overflow:auto;margin:8px 0 0;padding-inline:22px;color:#f0a1ad;font-size:.86rem;overflow-wrap:anywhere}
+
+/* ---------- плавающий аватар: маленький, перетаскивается ---------- */
+.yatsumi-avatar{position:fixed;z-index:8;right:20px;bottom:104px;width:clamp(110px,13vw,180px);aspect-ratio:1;max-width:30vw;max-height:30dvh;padding:0;border:0;background:transparent;cursor:grab;touch-action:none;user-select:none;filter:drop-shadow(0 0 20px #d4af3730);transition:filter .15s}
+.yatsumi-avatar:hover,.yatsumi-avatar:focus-visible{filter:drop-shadow(0 0 24px #f6e19a80)}
+.yatsumi-avatar:focus-visible{border-radius:14px}
 .yatsumi-avatar.is-dragging{cursor:grabbing;transition:none}
 .yatsumi-avatar img{display:block;width:100%;height:100%;object-fit:contain;pointer-events:none}
-@media(max-width:650px){.yatsumi-avatar{width:112px;height:145px;right:8px;bottom:105px}}
-@media(prefers-reduced-motion:reduce){.yatsumi-avatar{transition:none}}
 
-.avatar-settings-preview{margin-top:15px;width:140px;height:150px;border:1px solid #55436c;border-radius:14px;background:radial-gradient(circle,#382845,#1a1525);display:grid;place-items:center;overflow:hidden}
-.avatar-settings-preview img{max-width:100%;max-height:100%;object-fit:contain}
-.avatar-settings-preview span{font-size:11px;color:#9386a5;text-align:center;padding:10px}
-.avatar-settings-actions{display:flex;gap:10px;flex-wrap:wrap}
+/* ---------- настройки: окно по центру ---------- */
+.overlay{position:fixed;inset:0;width:100%;height:100%;max-width:none;max-height:none;margin:0;padding:clamp(10px,3vw,32px);border:0;background:transparent;color:inherit;display:grid;place-items:center}
+.overlay:not([open]){display:none}
+.overlay::backdrop{background:transparent}
+.scrim{position:absolute;inset:0;background:#000c;backdrop-filter:blur(6px)}
+.panel{position:relative;display:flex;flex-direction:column;width:min(100%,620px);max-height:100%;min-height:0;background:var(--black);border:1px solid var(--gold-deep);border-radius:22px;box-shadow:0 0 0 1px #000,0 0 90px -18px #d4af3766;overflow:hidden}
+.panel::before{content:"";flex:none;height:3px;background:var(--metal)}
+@media(prefers-reduced-motion:no-preference){
+  .overlay[open] .panel{animation:panel-in .22s cubic-bezier(.2,.8,.2,1)}
+  @keyframes panel-in{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+}
+.panel-head{flex:none;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:20px clamp(18px,4vw,30px) 16px}
+.panel h2{margin:0;font-family:var(--display);font-weight:600;font-size:2rem;line-height:1.1;color:var(--gold-light)}
+.close{width:38px;height:38px}
+.notice{flex:none;overflow-wrap:anywhere}
+.notice:not(:empty){margin:0 clamp(18px,4vw,30px) 10px;padding:10px 14px;border:1px solid var(--line-strong);border-radius:12px;background:var(--ink-raised);color:var(--gold-pale);font-size:.9rem}
+.panel-body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:0 clamp(18px,4vw,30px)}
+.group{padding:22px 0;border-top:1px solid var(--line)}
+.group p{font-size:.9rem;color:var(--muted)}
+.group-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.group h3{margin:0;font-family:var(--display);font-weight:600;font-size:1.4rem;line-height:1.2;color:var(--gold-light)}
+.steps{list-style:none;margin:16px 0 0;padding:0;counter-reset:step;display:grid;gap:22px}
+.step{position:relative;padding-left:46px;counter-increment:step;min-width:0}
+.step::before{content:counter(step);position:absolute;left:0;top:-2px;width:30px;height:30px;display:grid;place-items:center;border:1px solid var(--gold);border-radius:50%;font-family:var(--display);font-variant-numeric:lining-nums;font-weight:600;font-size:1.2rem;line-height:1;color:var(--gold-light)}
+.step:not(:last-child)::after{content:"";position:absolute;left:15px;top:34px;bottom:-18px;width:1px;background:var(--line)}
+.step h4{margin:0 0 2px;font-size:1rem;font-weight:600;color:var(--text)}
+.field{display:flex;margin-top:12px;min-width:0;background:var(--ink);border:1px solid var(--line-strong);border-radius:12px;overflow:hidden;transition:border-color .15s,box-shadow .15s}
+.field:focus-within{border-color:var(--gold);box-shadow:0 0 0 4px #d4af371f}
+.field input,.field select{flex:1;min-width:0;width:100%;padding:.72em .9em;border:0;outline:0;background:transparent;color:var(--gold-pale);font-size:16px}
+.field input::placeholder{color:#8a7747}
+.field select option{background:#0a0804;color:var(--text)}
+.field button{flex:none;display:grid;place-items:center;width:46px;border:0;border-left:1px solid var(--line);background:transparent;color:var(--gold)}
+.field button:hover:not(:disabled){background:var(--ink-raised);color:var(--gold-pale)}
+.group .secondary,.group .primary{margin-top:14px}
+.small-note{margin-top:8px;font-size:.82rem;color:var(--muted);overflow-wrap:anywhere}
+.small-note:empty{display:none}
+.avatar-row{display:flex;gap:18px;align-items:flex-start}
+.avatar-settings-preview{flex:none;width:132px;height:132px;display:grid;place-items:center;border:1px solid var(--line-strong);border-radius:16px;background:var(--ink);overflow:hidden;color:var(--muted);font-size:.82rem;text-align:center}
+.avatar-settings-preview img{width:100%;height:100%;object-fit:contain}
+.avatar-side{flex:1;min-width:0}
+.avatar-settings-actions{display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px}
 .avatar-settings-actions .secondary{margin-top:12px}
+.avatar-settings-actions .link-button{margin-top:12px}
+.panel-foot{flex:none;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px clamp(18px,4vw,30px);border-top:1px solid var(--line);background:var(--ink)}
+.panel-foot .small-note{margin:0}
 
-/* Drag the lower-right corner of the chat panel to resize it. */
-.conversation{align-self:center;width:min(800px,100%);resize:both;overflow:auto;padding:20px 18px 28px;border:1px solid #3c3150;border-radius:16px;background:#13111dcc;scrollbar-color:#7d609f #211a2b}
-@media(max-width:650px){.conversation{padding:14px 12px 25px}}
-
-
-/* Fluid layouts: ultrawide, laptop, tablet, phone and short landscape viewports. */
-html{min-height:100%;overflow-x:hidden}
-body{min-height:100dvh;overflow-x:hidden}
-.shell{height:100vh;height:100dvh;min-height:0;max-width:100vw}
-.workspace{min-width:0;min-height:0}
-.topbar{flex-shrink:0;gap:14px;padding-inline:clamp(14px,3vw,64px)}
-.brand{min-width:0}.brand-title{overflow-wrap:anywhere}
-.top-actions{min-width:0;flex-shrink:0;gap:clamp(8px,2vw,24px)}
-.main{min-height:0;min-width:0;width:100%;flex:1 1 0;display:grid;grid-template:minmax(0,1fr) / minmax(0,1fr);place-items:center;overflow:hidden;padding:clamp(10px,2vw,28px)}
-.welcome{width:100%;max-height:100%;overflow:auto;padding-block:12px}
-.welcome h1{font-size:clamp(28px,4vw,56px)}
-.intro{overflow-wrap:anywhere}
-.composer-wrap{flex-shrink:0;width:100%;padding:10px clamp(12px,3vw,64px) max(14px,env(safe-area-inset-bottom))}
-.composer{width:min(100%,1100px)}
-.composer textarea{min-width:0;width:100%;font-size:16px}
-.footer-note{line-height:1.5;overflow-wrap:anywhere}
-.conversation{min-width:0;max-width:100%;max-height:100%;height:min(60dvh,620px);overflow-wrap:anywhere;overscroll-behavior:contain}
-.bubble{flex-shrink:0;overflow-wrap:anywhere}
-.panel{max-width:100%;min-width:0}
-.panel-body{overscroll-behavior:contain}
-.panel-foot{gap:12px;flex-wrap:wrap}
-.avatar-settings-actions{max-width:100%}
-.yatsumi-avatar{max-width:30vw;max-height:32dvh}
-@media(min-width:1600px){
- .rail{width:clamp(78px,5vw,110px)}
- .topbar{height:clamp(92px,7vh,128px)}
- .main{padding-inline:clamp(30px,5vw,110px)}
- .conversation{width:min(72vw,1400px)}
- .composer{width:min(72vw,1200px)}
- .welcome{max-width:850px}
-}
-@media(max-width:900px){
- .rail{width:56px;padding-block:20px}
- .topbar{height:78px}
- .brand-title{font-size:13px;letter-spacing:.15em}
- .brand-sub{font-size:8px;letter-spacing:.14em}
- .conversation{width:100%;max-width:100%}
- .composer{max-width:100%}
-}
+/* ---------- адаптивность ---------- */
 @media(max-width:600px){
- .rail{width:38px;flex-shrink:0;padding-block:16px}
- .mark{font-size:24px}.fox{font-size:19px}
- .topbar{height:66px;padding-inline:12px}
- .brand-title{font-size:11px;letter-spacing:.08em}
- .brand-sub{font-size:7px;letter-spacing:.06em}
- .top-actions{gap:8px}
- .top-actions .connection{display:none}
- .icon-button{width:38px;height:38px;flex-shrink:0}
- .main{padding:8px}
- .welcome{padding:12px 4px}
- .halo{width:110px;height:110px;margin-bottom:16px}
- .kanji{font-size:54px}
- .welcome h1{margin:12px 0}
- .intro{font-size:13px;line-height:1.6}
- .primary{margin-top:12px;padding:12px 16px}
- .hint{margin-top:14px}
- .composer-wrap{padding:8px 8px max(10px,env(safe-area-inset-bottom))}
- .composer{padding:7px 8px 7px 12px;gap:6px}
- .composer button{flex-shrink:0}
- .footer-note{font-size:8px;letter-spacing:.07em;margin-top:8px}
- .conversation{height:min(50dvh,480px);padding:12px 10px 20px;gap:10px}
- .bubble{font-size:13px;padding:10px 12px;max-width:95%}
- .panel-head{padding:22px 18px 16px}
- .panel-body{padding:18px}
- .panel-foot{padding:14px 18px}
- .step{gap:10px;margin-bottom:18px;padding-bottom:20px}
- .panel h2{font-size:23px}
- .yatsumi-avatar{width:95px;height:120px;max-width:27vw;max-height:25dvh}
+  .chat{top:104px;left:8px;right:8px;bottom:8px;width:auto;height:auto;transform:none;border-radius:18px;animation:none!important}
+  .bubble{max-width:92%}
+  .composer{padding-left:18px}
+  .yatsumi-avatar{width:88px;top:8px;left:10px;right:auto;bottom:auto}
+  .avatar-row{flex-direction:column}
+  .panel{border-radius:18px}
 }
-@media(max-height:650px){
- .topbar{height:56px}
- .main{padding-block:6px}
- .welcome .halo{width:75px;height:75px;margin-bottom:8px}
- .welcome .kanji{font-size:37px}
- .welcome h1{margin:6px 0}
- .welcome .hint{margin-top:8px}
- .composer-wrap{padding-block:6px}
- .footer-note{margin-top:5px}
- .conversation{height:42dvh}
- .yatsumi-avatar{max-height:22dvh}
-}
-@media(max-width:400px){
- .brand-sub{display:none}
- .rail{width:30px}
- .topbar{padding-inline:8px}
- .brand-title{font-size:10px}
- .conversation{border-radius:10px}
-}
-@media(pointer:coarse){
- .conversation{resize:none}
- .icon-button,.close{min-width:40px;min-height:40px}
-}
-
-/* Browser/OS display scaling: CSS pixels, not transform zoom (which breaks input and dragging). */
-:root{font-size:clamp(14px,0.875rem + 0.1vw,18px);-webkit-text-size-adjust:100%;text-size-adjust:100%}
-.shell,.workspace{max-width:100%;min-width:0}
-.topbar,.main,.composer-wrap,.panel-head,.panel-body,.panel-foot{min-width:0}
-.topbar{min-height:0}
-.panel{max-height:100dvh;min-height:0}
-.panel-body{min-height:0;overflow-y:auto}
-.step-content,.key-input,.select-wrap,.connect-row{min-width:0;max-width:100%}
-.step-content input,.step-content select{max-width:100%}
-.yatsumi-avatar{max-width:min(30vw,210px);max-height:min(32dvh,250px)}
-@media(max-height:450px){.conversation{height:min(38dvh,240px)}.topbar{height:48px}.footer-note{display:none}}
-@media(hover:none),(pointer:coarse){.conversation{resize:none}}
-
-.panel-head,.panel-foot{flex-shrink:0}
-.notice:not(:empty){padding:8px clamp(18px,3vw,34px);background:#211b2c;overflow-wrap:anywhere}
-.notice:empty{min-height:0}
-.chat-notice{width:min(100%,850px);max-height:3em;overflow:auto;margin:6px auto 0;color:#f5a6b4;font-size:13px;overflow-wrap:anywhere}
-:focus-visible{outline:2px solid #d8b3ff;outline-offset:3px}
-.composer:focus-within,.key-input:focus-within,.select-wrap:focus-within{border-color:#bd9de5}
-.composer textarea::placeholder{color:#a9a0bb}
+@media(max-height:560px){.chat{height:calc(100dvh - 16px)}.yatsumi-avatar{max-height:24dvh}}
+@media(pointer:coarse){.icon-button,.close{min-width:44px;min-height:44px}}

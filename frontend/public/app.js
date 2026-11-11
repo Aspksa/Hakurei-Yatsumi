@@ -26,7 +26,7 @@ function setStatus(state) {
   $('panelStatus').textContent = label;
   const usage = state.usage ?? {};
   $('tokenUsage').textContent = 'Токены: ' + (usage.total_tokens || 0) + ' · вход ' + (usage.prompt_tokens || 0) + ' · выход ' + (usage.completion_tokens || 0);
-  message.placeholder = state.connected ? 'Напиши сообщение Яцуми…' : 'Подключите модель в настройках…';
+  message.placeholder = state.connected ? 'Напиши сообщение Яцуми…' : 'Сначала подключите модель…';
   updateControls();
 }
 function notice(text) { $('notice').textContent = text; }
@@ -34,9 +34,11 @@ function chatNotice(text) {
   $('chatNotice').textContent = text;
   $('chatNotice').hidden = !text;
 }
-function showChat() {
-  $('welcome').hidden = true;
-  conversation.hidden = false;
+const chatPanel = $('chatPanel');
+function setChatOpen(open) {
+  chatPanel.classList.toggle('is-open', open);
+  $('yatsumiAvatar').setAttribute('aria-expanded', String(open));
+  if (open) { scrollToLatest(); message.focus(); }
 }
 function openSettings() {
   if (!overlay.open) overlay.showModal();
@@ -78,8 +80,8 @@ async function configure(work) {
   finally { configuring = false; updateControls(); }
 }
 $('settingsOpen').addEventListener('click', openSettings);
-$('setupStart').addEventListener('click', openSettings);
 $('settingsClose').addEventListener('click', closeSettings);
+$('chatClose').addEventListener('click', () => { setChatOpen(false); $('yatsumiAvatar').focus(); });
 $('settingsCloseBackdrop').addEventListener('click', closeSettings);
 $('toggleKey').addEventListener('click', () => {
   const visible = $('apiKey').type === 'password';
@@ -104,8 +106,7 @@ $('connectModel').addEventListener('click', () => configure(async () => {
   try { localStorage.setItem('yatsumi-cloud-model', state.model || ''); } catch {}
   notice('Модель подключена. Можно начать диалог.');
   if (overlay.open) closeSettings();
-  showChat();
-  message.focus();
+  setChatOpen(true);
 }));
 $('forgetKey').addEventListener('click', () => configure(async () => {
   setStatus(await api('/cloud/key', { method: 'DELETE' }));
@@ -181,7 +182,6 @@ $('chatForm').addEventListener('submit', async event => {
   sending = true;
   updateControls();
   chatNotice('');
-  showChat();
   message.value = '';
   const userBubble = bubble('user', content);
   const loading = bubble('assistant', 'Яцуми думает…');
@@ -215,7 +215,6 @@ message.addEventListener('keydown', event => {
   if (saved.status === 'fulfilled') {
     const messages = saved.value.messages.filter(item => ['user', 'assistant'].includes(item.role));
     if (messages.length) {
-      showChat();
       for (const item of messages) bubble(item.role, item.content);
       scrollToLatest();
     }
@@ -284,6 +283,5 @@ avatar.addEventListener('pointercancel', finishDrag);
 avatar.addEventListener('lostpointercapture', finishDrag);
 avatar.addEventListener('click', event => {
   if (suppressClick && event.detail) { suppressClick = false; return; }
-  showChat();
-  message.focus();
+  setChatOpen(!chatPanel.classList.contains('is-open'));
 });
