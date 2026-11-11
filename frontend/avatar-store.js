@@ -12,11 +12,11 @@ const formats = [
 export function avatarRouter({ directory }) {
   const router = express.Router();
   const path = join(directory, 'avatar.bin');
-  const metadata = join(directory, 'avatar.type');
   router.get('/avatar', async (_req, res) => {
     try {
-      const [bytes, type] = await Promise.all([readFile(path), readFile(metadata, 'utf8')]);
-      if (!formats.some(f => f.type === type && f.match(bytes))) return res.status(500).json({ error: 'Повреждённый аватар' });
+      const bytes = await readFile(path);
+      const type = formats.find(f => f.match(bytes))?.type;
+      if (!type) return res.status(500).json({ error: 'Повреждённый аватар' });
       res.setHeader('content-type', type);
       res.setHeader('cache-control', 'no-store');
       res.setHeader('x-content-type-options', 'nosniff');
@@ -34,7 +34,6 @@ export function avatarRouter({ directory }) {
     try {
       await writeFile(tmp, bytes, { flag: 'wx', mode: 0o600 });
       await rename(tmp, path);
-      await writeFile(metadata, format.type, { mode: 0o600 });
       res.json({ ok: true, type: format.type, size: bytes.length });
     } catch {
       res.status(500).json({ error: 'Не удалось сохранить аватар' });
@@ -43,7 +42,6 @@ export function avatarRouter({ directory }) {
   router.delete('/avatar', async (_req, res) => {
     try {
       await rm(path, { force: true });
-      await rm(metadata, { force: true });
       res.json({ ok: true });
     } catch { res.status(500).json({ error: 'Не удалось удалить аватар' }); }
   });
