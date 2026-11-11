@@ -40,7 +40,7 @@ jobs:
           $base = Join-Path $env:RUNNER_TEMP 'Yatsumi Test'
           if ('${{ matrix.folder }}' -eq 'unicode') { $base = Join-Path $env:RUNNER_TEMP "Яцуми (тест) O'Brien" }
           New-Item -ItemType Directory -Force -Path $base | Out-Null
-          Copy-Item -LiteralPath "$env:GITHUB_WORKSPACE\." -Destination $base -Recurse -Force
+          Get-ChildItem -LiteralPath $env:GITHUB_WORKSPACE -Force | Copy-Item -Destination $base -Recurse -Force
           if ('${{ matrix.folder }}' -eq 'mapped') {
             cmd /c "subst P: `"$base`""
             if ($LASTEXITCODE -ne 0) { throw 'subst failed' }
