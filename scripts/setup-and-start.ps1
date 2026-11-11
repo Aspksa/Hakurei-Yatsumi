@@ -158,7 +158,7 @@ try {
    $saved=Get-Content -LiteralPath $state -Raw -Encoding UTF8 | ConvertFrom-Json
    if((Owned $saved.python) -and (Owned $saved.node) -and (Health 'http://127.0.0.1:8000/health') -and (Health 'http://127.0.0.1:3000/api/health')){
     Log 'Already running; no duplicate services started'
-    if(-not $NoBrowser){Start-Process 'http://127.0.0.1:8000/docs'}
+    if(-not $NoBrowser){Start-Process 'http://127.0.0.1:3000/'}
     exit 0
    }
    Stop-Owned $saved.node;Stop-Owned $saved.python
@@ -227,7 +227,7 @@ try {
   }
  }
  Log 'SUCCESS: API and Node gateway healthy'
- if(-not $NoBrowser){Start-Process 'http://127.0.0.1:8000/docs'}
+ if(-not $NoBrowser){Start-Process 'http://127.0.0.1:3000/'}
  exit 0
 }catch{
  $message=$_.Exception.Message
