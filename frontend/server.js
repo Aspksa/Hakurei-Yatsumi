@@ -1,4 +1,7 @@
 import express from 'express';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createCloudService } from './cloud.js';
 import { createServer } from 'node:http';
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, renameSync, statSync } from 'node:fs';
@@ -85,6 +88,7 @@ export function createGateway({ config = readConfig(), fetchImpl = fetch, logger
   const url = new URL(config.apiUrl);
   if (url.protocol !== 'http:' || !localHosts.has(url.hostname) || url.pathname !== '/' || url.search || url.hash || url.username || url.password) throw new Error('Invalid local Python origin');
   const app = express();
+  const cloud = createCloudService({ fetchImpl });
   const queue = createTaskQueue({ concurrency: config.queueConcurrency, limit: config.queueLimit });
   const clients = new Map();
   const metrics = { requests: 0, failures: 0, started: Date.now() };
@@ -123,6 +127,26 @@ export function createGateway({ config = readConfig(), fetchImpl = fetch, logger
     } catch {
       res.status(503).json({ status: 'degraded', node: 'ok', python: 'unavailable', sqlite: 'unknown', queue: queue.stats() });
     } finally { clearTimeout(timer); }
+  });
+  const publicDir = join(fileURLToPath(new URL('.', import.meta.url)), 'public');
+  app.use(express.static(publicDir, { index: 'index.html', dotfiles: 'deny', etag: false }));
+  app.get('/cloud/status', (req, res) => res.json(cloud.status()));
+  app.post('/cloud/key', (req, res) => {
+    try { res.json(cloud.setKey(req.body?.key)); }
+    catch (error) { res.status(400).json({ error: error.message }); }
+  });
+  app.delete('/cloud/key', (req, res) => res.json(cloud.clear()));
+  app.get('/cloud/models', async (req, res) => {
+    try { res.json({ models: await cloud.listModels() }); }
+    catch (error) { res.status(502).json({ error: error.message }); }
+  });
+  app.post('/cloud/connect', async (req, res) => {
+    try { res.json(await cloud.connect(req.body?.model)); }
+    catch (error) { res.status(400).json({ error: error.message }); }
+  });
+  app.post('/cloud/chat', async (req, res) => {
+    try { res.json(await cloud.chat(req.body?.messages)); }
+    catch (error) { res.status(502).json({ error: error.message }); }
   });
   app.use('/api', async (req, res) => {
     const controller = new AbortController();
