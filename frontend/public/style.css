@@ -8,3 +8,10 @@
 .yatsumi-avatar img{display:block;width:100%;height:100%;object-fit:contain;pointer-events:none}
 @media(max-width:650px){.yatsumi-avatar{width:112px;height:145px;right:8px;bottom:105px}}
 @media(prefers-reduced-motion:reduce){.yatsumi-avatar{transition:none}}
+
+.avatar-settings-preview{margin-top:15px;width:140px;height:150px;border:1px solid #55436c;border-radius:14px;background:radial-gradient(circle,#382845,#1a1525);display:grid;place-items:center;overflow:hidden}
+.avatar-settings-preview img{max-width:100%;max-height:100%;object-fit:contain}
+.avatar-settings-preview span{font-size:11px;color:#9386a5;text-align:center;padding:10px}
+.avatar-file{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
+.avatar-settings-actions{display:flex;gap:10px;flex-wrap:wrap}
+.avatar-settings-actions .secondary{margin-top:12px}
