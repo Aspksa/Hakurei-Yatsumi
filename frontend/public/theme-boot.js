@@ -2,7 +2,15 @@
 (() => {
   const THEME_KEY = 'yatsumi-theme-v1', AV_KEY = 'yatsumi-avatar-prefs-v1';
   const themeDefaults = { accent: '#d4af37', bg: 'black', shape: 'round', fill: 'metal', font: 100 };
-  const avatarDefaults = { show: true, size: null, shape: 'free', glow: true };
+  const avatarDefaults = { show: true, size: null, shape: 'free', glow: true, anim: 'float', snap: true };
+  const presets = [
+    { id: 'classic', name: 'Классика', theme: { accent: '#d4af37', bg: 'black', shape: 'round', fill: 'metal', font: 100 } },
+    { id: 'sakura', name: 'Сакура', theme: { accent: '#e58fb0', bg: 'black', shape: 'soft', fill: 'metal', font: 100 } },
+    { id: 'forest', name: 'Лес', theme: { accent: '#4fd1a1', bg: 'graphite', shape: 'soft', fill: 'metal', font: 100 } },
+    { id: 'twilight', name: 'Сумерки', theme: { accent: '#a98bff', bg: 'midnight', shape: 'round', fill: 'metal', font: 100 } },
+    { id: 'ice', name: 'Лёд', theme: { accent: '#5cc8f0', bg: 'midnight', shape: 'straight', fill: 'flat', font: 100 } },
+    { id: 'strict', name: 'Строгий', theme: { accent: '#cfd3da', bg: 'graphite', shape: 'straight', fill: 'flat', font: 100 } }
+  ];
   const shapes = {
     straight: { box: '0px', btn: '0px', round: '0px', field: '0px', bubble: '0px' },
     soft: { box: '14px', btn: '10px', round: '10px', field: '8px', bubble: '12px' },
@@ -64,10 +72,11 @@
     root.dataset.av = prefs.show === false ? 'off' : 'on';
     const [radius, frame] = avShapes[prefs.shape] || avShapes.free;
     set('--av-radius', radius); root.dataset.avFrame = frame;
+    root.dataset.avAnim = ['off', 'float', 'breathe'].includes(prefs.anim) ? prefs.anim : 'float';
     set('--av-glow', prefs.glow === false ? '0' : '1');
     if (Number.isFinite(prefs.size)) set('--av-size', prefs.size + 'px'); else root.style.removeProperty('--av-size');
   }
-  const api = { themeDefaults, avatarDefaults, readTheme: () => read(THEME_KEY, themeDefaults), readAvatar: () => read(AV_KEY, avatarDefaults),
+  const api = { themeDefaults, avatarDefaults, presets, readTheme: () => read(THEME_KEY, themeDefaults), readAvatar: () => read(AV_KEY, avatarDefaults),
     saveTheme(t) { write(THEME_KEY, t); applyTheme(t); }, saveAvatar(a) { write(AV_KEY, a); applyAvatar(a); window.dispatchEvent(new Event('resize')); } };
   window.YatsumiTheme = api;
   applyTheme(api.readTheme());

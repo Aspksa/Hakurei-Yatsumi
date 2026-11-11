@@ -17,6 +17,9 @@ function updateControls() {
   $('reloadModels').disabled = busy || !cloudState.configured;
   modelSelect.disabled = busy || modelSelect.options.length < 2;
   $('connectModel').disabled = modelSelect.disabled || !modelSelect.value;
+  for (const b of conversation.querySelectorAll('[data-act="retry"]')) b.disabled = busy || !cloudState.connected;
+  conversation.classList.toggle('is-busy', sending);
+  $('yatsumiAvatar').classList.toggle('is-busy', sending);
 }
 function setStatus(state) {
   cloudState = state;
@@ -124,12 +127,50 @@ $('forgetKey').addEventListener('click', () => configure(async () => {
   notice('Ключ сброшен.');
 }));
 function bubble(role, content) {
+  const wrap = document.createElement('div');
+  wrap.className = 'msg ' + role;
   const element = document.createElement('div');
   element.className = 'bubble ' + role;
   element.textContent = content;
-  conversation.append(element);
+  const actions = document.createElement('div');
+  actions.className = 'msg-actions';
+  const add = (act, label, title) => {
+    const button = document.createElement('button');
+    button.type = 'button'; button.dataset.act = act; button.textContent = label; button.title = title;
+    actions.append(button);
+  };
+  add('copy', 'Копировать', 'Скопировать текст сообщения');
+  if (role === 'user') add('edit', 'Изменить', 'Вставить в поле ввода, чтобы поправить и отправить заново');
+  else add('retry', 'Повторить', 'Отправить предыдущее сообщение ещё раз');
+  wrap.append(element, actions);
+  conversation.append(wrap);
   return element;
 }
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch {}
+  const area = Object.assign(document.createElement('textarea'), { value: text });
+  area.style.cssText = 'position:fixed;opacity:0';
+  document.body.append(area); area.select();
+  try { return document.execCommand('copy'); } catch { return false; } finally { area.remove(); }
+}
+conversation.addEventListener('click', async event => {
+  const button = event.target.closest('.msg-actions button');
+  if (!button || button.disabled) return;
+  const wrap = button.closest('.msg');
+  const text = wrap.querySelector('.bubble').textContent;
+  if (button.dataset.act === 'copy') {
+    const label = button.textContent;
+    button.textContent = (await copyText(text)) ? 'Скопировано' : 'Не удалось';
+    setTimeout(() => { button.textContent = label; }, 1500);
+  } else if (button.dataset.act === 'edit') {
+    message.value = text; message.focus();
+  } else if (button.dataset.act === 'retry') {
+    const previous = wrap.previousElementSibling;
+    if (!previous?.classList.contains('user')) return;
+    message.value = previous.querySelector('.bubble').textContent;
+    $('chatForm').requestSubmit();
+  }
+});
 function scrollToLatest() { conversation.scrollTop = conversation.scrollHeight; }
 function nearLatest() { return conversation.scrollHeight - conversation.scrollTop - conversation.clientHeight < 48; }
 
@@ -191,8 +232,8 @@ $('chatForm').addEventListener('submit', async event => {
     await streamReply(content, requestId, loading);
     pendingRetry = null;
   } catch (error) {
-    userBubble.remove();
-    loading.remove();
+    userBubble.parentElement.remove();
+    loading.parentElement.remove();
     if (!message.value) message.value = content;
     chatNotice('Ошибка: ' + error.message);
   } finally {
@@ -234,6 +275,20 @@ try {
   if (Number.isFinite(saved?.x) && Number.isFinite(saved?.y)) position = saved;
 } catch {}
 
+const SNAP_DISTANCE = 36, SNAP_MARGIN = 12;
+function snapped(x, y) {
+  let prefs = {};
+  try { prefs = window.YatsumiTheme.readAvatar(); } catch {}
+  if (prefs.snap === false) return { x, y };
+  const viewport = window.visualViewport;
+  const left = viewport?.offsetLeft ?? 0, top = viewport?.offsetTop ?? 0;
+  const width = viewport?.width ?? innerWidth, height = viewport?.height ?? innerHeight;
+  const near = (value, low, high) => value - low < SNAP_DISTANCE ? low + SNAP_MARGIN : high - value < SNAP_DISTANCE ? high - SNAP_MARGIN : value;
+  return {
+    x: near(x, left, left + width - avatar.offsetWidth),
+    y: near(y, top, top + height - avatar.offsetHeight)
+  };
+}
 function refitAvatar() {
   if (avatar.hidden || !position) return;
   const viewport = window.visualViewport;
@@ -273,7 +328,8 @@ function finishDrag(event) {
   avatar.classList.remove('is-dragging');
   if (drag.moved) {
     const { left, top } = avatar.getBoundingClientRect();
-    position = { x: left, y: top };
+    position = snapped(left, top);
+    refitAvatar();
     try { localStorage.setItem(positionKey, JSON.stringify(position)); } catch {}
   }
   drag = null;

@@ -107,3 +107,18 @@ jobs:
             ${{ runner.temp }}/Яцуми (тест) O'Brien/logs/*.log
             ${{ github.workspace }}/logs/*.log
           if-no-files-found: ignore
+
+  ui-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Browser UI tests
+        working-directory: frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          npm run test:e2e

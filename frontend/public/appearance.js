@@ -30,6 +30,26 @@ function segmented(id, get, set) {
 }
 const saveTheme = () => T.saveTheme(theme), saveAv = () => T.saveAvatar(av);
 
+// ---- готовые темы ----
+const presetBox = $('presets');
+for (const preset of T.presets) {
+  const b = Object.assign(document.createElement('button'), { type: 'button' });
+  b.className = 'preset'; b.dataset.id = preset.id;
+  b.style.setProperty('--sw', preset.theme.accent);
+  b.innerHTML = '<i></i><span></span>';
+  b.querySelector('span').textContent = preset.name;
+  presetBox.append(b);
+}
+const sameTheme = (x, y) => ['accent', 'bg', 'shape', 'fill'].every(k => String(x[k]).toLowerCase() === String(y[k]).toLowerCase());
+const syncPresets = () => presetBox.querySelectorAll('.preset').forEach(b =>
+  b.setAttribute('aria-pressed', String(sameTheme(theme, T.presets.find(p => p.id === b.dataset.id).theme))));
+presetBox.addEventListener('click', event => {
+  const b = event.target.closest('.preset');
+  if (!b) return;
+  theme = { ...theme, ...T.presets.find(p => p.id === b.dataset.id).theme, font: theme.font };
+  saveTheme(); syncAll();
+});
+
 // ---- оформление ----
 const swatchBox = $('accentSwatches');
 const picker = Object.assign(document.createElement('input'), { type: 'color', title: 'Свой цвет', ariaLabel: 'Свой цвет акцента' });
@@ -46,10 +66,11 @@ const syncSwatches = () => {
 swatchBox.addEventListener('click', event => { const b = event.target.closest('.swatch'); if (b) { theme.accent = b.dataset.color; saveTheme(); syncSwatches(); } });
 picker.addEventListener('input', () => { theme.accent = picker.value; saveTheme(); syncSwatches(); });
 const syncers = [
-  syncSwatches,
+  syncSwatches, syncPresets,
   segmented('bgMode', () => theme.bg, v => { theme.bg = v; saveTheme(); }),
   segmented('shapeMode', () => theme.shape, v => { theme.shape = v; saveTheme(); }),
   segmented('fillMode', () => theme.fill, v => { theme.fill = v; saveTheme(); }),
+  segmented('avAnim', () => av.anim, v => { av.anim = v; saveAv(); }),
   segmented('avShape', () => av.shape, v => { av.shape = v; saveAv(); })
 ];
 const font = $('fontScale');
@@ -61,6 +82,7 @@ const size = $('avSize');
 function currentSize() { return Number.isFinite(av.size) ? av.size : Math.round(document.getElementById('yatsumiAvatar').offsetWidth || 150); }
 size.addEventListener('input', () => { av.size = Number(size.value); $('avSizeOut').textContent = size.value + ' px'; saveAv(); });
 $('avShow').addEventListener('change', event => { av.show = event.target.checked; saveAv(); });
+$('avSnap').addEventListener('change', event => { av.snap = event.target.checked; saveAv(); });
 $('avGlow').addEventListener('change', event => { av.glow = event.target.checked; saveAv(); });
 $('avResetPos').addEventListener('click', () => window.dispatchEvent(new Event('yatsumi:avatar-reset-position')));
 $('avResetAll').addEventListener('click', () => { av = { ...T.avatarDefaults }; saveAv(); window.dispatchEvent(new Event('yatsumi:avatar-reset-position')); syncAll(); });
@@ -68,7 +90,7 @@ $('avResetAll').addEventListener('click', () => { av = { ...T.avatarDefaults }; 
 function syncAll() {
   syncers.forEach(sync => sync());
   font.value = theme.font; $('fontScaleOut').textContent = theme.font + '%';
-  $('avShow').checked = av.show !== false; $('avGlow').checked = av.glow !== false;
+  $('avShow').checked = av.show !== false; $('avGlow').checked = av.glow !== false; $('avSnap').checked = av.snap !== false;
   size.value = currentSize(); $('avSizeOut').textContent = size.value + ' px';
 }
 $('settingsOpen').addEventListener('click', syncAll);

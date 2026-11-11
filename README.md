@@ -24,6 +24,16 @@ uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
 # separate terminal: cd frontend && npm start
 ```
 
+## Tests
+
+```bash
+python -m pytest tests -q          # backend
+cd frontend && npm test            # gateway and unit tests
+cd frontend && npx playwright install chromium && npm run test:e2e   # browser UI tests
+```
+
+Environment variables are documented in `.env.example`; a unit test fails if the code reads a variable that is missing there.
+
 ## Database
 
 Migrations: `backend/migrations/001_initial.sql` and `backend/migrations/002_core_turns.sql`. Tables: users, conversations, messages, memories, character_settings, events, core_turns, schema_migrations. Database files and secrets are excluded by `.gitignore`.
