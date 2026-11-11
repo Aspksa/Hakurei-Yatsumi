@@ -1,0 +1,71 @@
+name: Windows BAT v3
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+jobs:
+  windows-launcher:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        folder: ["ordinary", "unicode", "mapped"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check PowerShell 5.1 syntax
+        shell: powershell
+        run: |
+          $files = @('scripts/setup-and-start.ps1','scripts/stop.ps1','scripts/run-service.ps1')
+          foreach ($file in $files) {
+            $tokens = $null; $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file), [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count) { $errors | Format-List | Out-String | Write-Host; throw "Invalid syntax: $file" }
+          }
+      - name: Python tests and Node syntax
+        shell: pwsh
+        run: |
+          python -m pip install -r backend/requirements.txt
+          python -m pytest tests -q
+          node --check frontend/server.js
+      - name: Stage path scenarios
+        shell: powershell
+        run: |
+          $base = Join-Path $env:RUNNER_TEMP 'Yatsumi Test'
+          if ('${{ matrix.folder }}' -eq 'unicode') { $base = Join-Path $env:RUNNER_TEMP "Яцуми (тест) O'Brien" }
+          New-Item -ItemType Directory -Force -Path $base | Out-Null
+          Copy-Item -LiteralPath "$env:GITHUB_WORKSPACE\." -Destination $base -Recurse -Force
+          if ('${{ matrix.folder }}' -eq 'mapped') {
+            cmd /c "subst P: `"$base`""
+            if ($LASTEXITCODE -ne 0) { throw 'subst failed' }
+            $base='P:\'
+          }
+          $base | Set-Content -LiteralPath "$env:RUNNER_TEMP\project-path.txt"
+      - name: Start, health check, repeat start, stop
+        shell: powershell
+        run: |
+          $root = Get-Content -LiteralPath "$env:RUNNER_TEMP\project-path.txt" -Raw
+          $root = $root.Trim()
+          & (Join-Path $root 'scripts\setup-and-start.ps1') -ProjectRoot $root -NoBrowser
+          if ($LASTEXITCODE -ne 0) { throw 'First launch failed' }
+          & (Join-Path $root 'scripts\setup-and-start.ps1') -ProjectRoot $root -NoBrowser -Offline
+          if ($LASTEXITCODE -ne 0) { throw 'Repeated offline launch failed' }
+          & (Join-Path $root 'scripts\stop.ps1') -ProjectRoot $root
+          if ($LASTEXITCODE -ne 0) { throw 'Stop failed' }
+          if ('${{ matrix.folder }}' -eq 'mapped') { cmd /c 'subst P: /D' }
+      - name: Upload diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-v3-${{ matrix.folder }}
+          path: |
+            ${{ runner.temp }}/Yatsumi Test/logs/*.log
+            ${{ runner.temp }}/Яцуми (тест) O'Brien/logs/*.log
+            ${{ github.workspace }}/logs/*.log
+          if-no-files-found: ignore

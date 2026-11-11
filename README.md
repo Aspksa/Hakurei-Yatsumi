@@ -40,3 +40,21 @@ Run `python -m pytest tests -q` from the repository root after installing backen
 - A moved or broken `.venv` is recreated. Python and Node package installation is retried once.
 - Both services are checked for up to 30 seconds each. Ports 8000/3000 must be free. A failed startup stops processes launched by this attempt.
 - **Verification:** Python API tests and Node syntax checks passed on Linux. Real Windows PowerShell 5.1 execution, Cyrillic paths, and installers have not been tested on Windows yet.
+
+
+## BAT v3: Windows setup and recovery
+
+Run `Hakurei-Yatsumi.bat` on Windows. PowerShell 5.1 script: `scripts/setup-and-start.ps1`.
+
+- Preflight checks Windows, write permissions, disk space (fixed disks), and occupied ports. Network drives are warned about, not silently rejected.
+- Detects Python 3.10+ and Node.js 20+; attempts winget user-scope installation or signed official x64 installers if absent. The first run needs internet. Some Windows ARM64 and custom installs require manual setup.
+- Python and npm commands have checked exit codes and one retry. Invalid or relocated Python venv is recreated.
+- SQLite `PRAGMA integrity_check` and an online backup to `backend/data/backups` run before migrations. Backups are excluded from Git by `*.db`.
+- Logs: `logs/startup.log`, `logs/python.stdout.log`, `logs/python.stderr.log`, `logs/node.stdout.log`, `logs/node.stderr.log`. Logs rotate to `.old` at 2 MiB. `logs/diagnostics.txt` contains no API keys.
+- Process state: `logs/services.json`. A second launch detects healthy services; stale managed processes are stopped only if PID, executable path and start time match. Stop with `powershell -NoProfile -File scripts/stop.ps1 -ProjectRoot .`.
+- Offline mode after first successful installation: `powershell -NoProfile -File scripts/setup-and-start.ps1 -ProjectRoot . -Offline -NoBrowser`. Missing dependencies produce explicit errors.
+- Preflight-only: `powershell -NoProfile -File scripts/setup-and-start.ps1 -ProjectRoot . -Diagnostics -NoBrowser`.
+- Windows CI tests normal paths, Cyrillic/parentheses/apostrophe paths and a `subst P:` mapped drive. `subst` does **not** test a real SMB network drive.
+- Real Windows CI results must be checked in the repository Actions tab; a workflow file alone does not establish a passing run.
+
+**Security:** Localhost-only prototype. Do not expose port 3000 publicly; the Node gateway uses a shared local API key, not per-user authentication.
