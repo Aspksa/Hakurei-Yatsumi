@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 import hmac
 import json
 import os
+import re
 import sqlite3
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
@@ -12,7 +13,7 @@ if not API_KEY:
     raise RuntimeError("Set YATSUMI_API_KEY in the environment")
 
 def authenticate(x_api_key: str | None = Header(default=None)):
-    if not x_api_key or not hmac.compare_digest(x_api_key, API_KEY):
+    if not x_api_key or not hmac.compare_digest(x_api_key.encode(), API_KEY.encode()):
         raise HTTPException(401, "Unauthorized")
 
 @asynccontextmanager
@@ -43,7 +44,7 @@ class MemoryIn(BaseModel):
 def health():
     try:
         with connection() as db:
-            db.execute("SELECT 1").fetchone()
+            db.execute("SELECT 1 FROM schema_migrations LIMIT 1").fetchone()
         return {"status": "ok", "sqlite": "ok"}
     except sqlite3.Error:
         raise HTTPException(503, "SQLite unavailable")
@@ -118,8 +119,11 @@ def create_event(user_id: int | None, event_type: str, details: str = "{}"):
 
 
 
+REQUEST_ID_PATTERN = r"^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+
+
 class CoreTurnIn(BaseModel):
-    request_id: str = Field(pattern=r"^[0-9a-fA-F-]{36}$")
+    request_id: str = Field(pattern=REQUEST_ID_PATTERN)
     user_content: str = Field(min_length=1, max_length=8000)
     assistant_content: str = Field(min_length=1, max_length=200000)
 
@@ -136,6 +140,8 @@ def read_core_turn(db, conversation_id: int, request_id: str):
 
 @app.get("/core/conversations/{conversation_id}/turns/{request_id}")
 def get_core_turn(conversation_id: int, request_id: str):
+    if not re.fullmatch(REQUEST_ID_PATTERN, request_id):
+        raise HTTPException(422, "Invalid request ID")
     with connection() as db:
         result = read_core_turn(db, conversation_id, request_id)
         if not result:
@@ -155,13 +161,13 @@ def save_core_turn(conversation_id: int, data: CoreTurnIn):
                 raise HTTPException(409, "Request ID already belongs to another turn")
             return {**existing, "duplicate": True}
         user_id = db.execute(
-            "INSERT INTO messages(conversation_id,role,content) VALUES (?, 'user', ?) RETURNING id",
+            "INSERT INTO messages(conversation_id,role,content) VALUES (?, 'user', ?)",
             (conversation_id, data.user_content),
-        ).fetchone()["id"]
+        ).lastrowid
         assistant_id = db.execute(
-            "INSERT INTO messages(conversation_id,role,content) VALUES (?, 'assistant', ?) RETURNING id",
+            "INSERT INTO messages(conversation_id,role,content) VALUES (?, 'assistant', ?)",
             (conversation_id, data.assistant_content),
-        ).fetchone()["id"]
+        ).lastrowid
         db.execute(
             "INSERT INTO core_turns(conversation_id,request_id,user_message_id,assistant_message_id) VALUES (?,?,?,?)",
             (conversation_id, data.request_id, user_id, assistant_id),
@@ -178,3 +184,22 @@ def core_session(user_id: int):
             (user_id,),
         ).fetchone()
         return {"conversation_id": row["id"] if row else None}
+
+
+@app.post("/core/session/{user_id}")
+def initialize_core_session(user_id: int):
+    with connection() as db:
+        db.execute("BEGIN IMMEDIATE")
+        row = db.execute(
+            "SELECT id FROM conversations WHERE user_id=? ORDER BY id DESC LIMIT 1",
+            (user_id,),
+        ).fetchone()
+        if row:
+            return {"conversation_id": row["id"]}
+        if not db.execute("SELECT 1 FROM users WHERE id=?", (user_id,)).fetchone():
+            raise HTTPException(404, "User not found")
+        cursor = db.execute(
+            "INSERT INTO conversations(user_id,title) VALUES (?,?)",
+            (user_id, "Яцуми — основной диалог"),
+        )
+        return {"conversation_id": cursor.lastrowid}

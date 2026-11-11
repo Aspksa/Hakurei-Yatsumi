@@ -7,6 +7,7 @@ on:
 jobs:
   windows-launcher:
     runs-on: windows-latest
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -31,11 +32,12 @@ jobs:
       - name: Python tests and Node syntax
         shell: pwsh
         run: |
+          $PSNativeCommandUseErrorActionPreference = $true
           python -m pip install -r backend/requirements.txt
           python -m pytest tests -q
           node --check frontend/server.js
           cd frontend
-          npm install --no-audit --no-fund
+          npm ci --no-audit --no-fund
           npm test
       - name: Stage path scenarios
         shell: powershell
@@ -57,8 +59,30 @@ jobs:
           $root = $root.Trim()
           & (Join-Path $root 'Hakurei-Yatsumi.bat') -NoBrowser
           if ($LASTEXITCODE -ne 0) { throw 'BAT launch failed' }
+          $state = Join-Path $root 'logs\services.json'
+          $original = Get-Content -LiteralPath $state -Raw | ConvertFrom-Json
           & (Join-Path $root 'scripts\setup-and-start.ps1') -ProjectRoot $root -NoBrowser -Offline
           if ($LASTEXITCODE -ne 0) { throw 'Repeated offline launch failed' }
+          $repeated = Get-Content -LiteralPath $state -Raw | ConvertFrom-Json
+          if ($repeated.node.pid -ne $original.node.pid -or $repeated.python.pid -ne $original.python.pid) {
+            throw 'Repeated launch replaced healthy services'
+          }
+          if ('${{ matrix.folder }}' -eq 'ordinary') {
+            Stop-Process -Id $original.node.pid -Force
+            $recovered = $false
+            for ($i = 0; $i -lt 60; $i++) {
+              Start-Sleep -Seconds 1
+              try {
+                $current = Get-Content -LiteralPath $state -Raw | ConvertFrom-Json
+                $health = Invoke-WebRequest 'http://127.0.0.1:3000/gateway/health' -UseBasicParsing -TimeoutSec 2
+                if ($current.node.pid -ne $original.node.pid -and $health.StatusCode -eq 200) {
+                  $recovered = $true
+                  break
+                }
+              } catch {}
+            }
+            if (-not $recovered) { throw 'Watchdog did not restart the gateway' }
+          }
           & (Join-Path $root 'scripts\stop.ps1') -ProjectRoot $root
           if ($LASTEXITCODE -ne 0) { throw 'Stop failed' }
           if ('${{ matrix.folder }}' -eq 'mapped') { cmd /c 'subst P: /D' }

@@ -29,7 +29,7 @@ test('Cloud.ru rejects invalid models and malformed messages', async () => {
   assert.throws(() => cloud.setKey('short'), /ключ/);
   cloud.setKey('valid-secret-key');
   await cloud.listModels();
-  await assert.rejects(cloud.connect('unknown'), /Выберите модель/);
+  await assert.rejects(cloud.connect('unknown'), { code: 'MODEL' });
   await cloud.connect('model');
   await assert.rejects(cloud.chat([{ role: 'system', content: 'unsafe' }]), /история/);
 });
@@ -113,4 +113,46 @@ test('Cloud.ru streams SSE deltas and completion without duplicate POST', async 
   assert.deepEqual(events.map(event => event.type), ['delta', 'delta', 'done']);
   assert.equal(events.slice(0, 2).map(event => event.content).join(''), 'Привет');
   assert.equal(posts, 1);
+});
+
+test('an unfinished provider stream emits no completion', async () => {
+  const cloud = createCloudService({ fetchImpl: async (url, options) => {
+    if (url.endsWith('/models')) return Response.json({ data: [{ id: 'model' }] });
+    const body = JSON.parse(options.body);
+    assert.ok(body.max_completion_tokens > 0);
+    if (!body.stream) return Response.json({ choices: [{ message: { content: 'готово' } }] });
+    return new Response('data: {"choices":[{"delta":{"content":"часть"}}]}\n\n');
+  } });
+  cloud.setKey('valid-secret-key');
+  await cloud.listModels();
+  await cloud.connect('model');
+  const events = [];
+  await assert.rejects(cloud.streamChat([{ role: 'user', content: 'Привет' }], event => events.push(event)), {
+    code: 'STREAM_INCOMPLETE'
+  });
+  assert.deepEqual(events, [{ type: 'delta', content: 'часть' }]);
+  assert.equal(cloud.status().connected, true);
+});
+
+test('an old authentication failure cannot disconnect a newly configured model', async () => {
+  let rejectOldRequest;
+  const oldResponse = new Promise(resolve => { rejectOldRequest = resolve; });
+  const cloud = createCloudService({ fetchImpl: async (url, options) => {
+    if (url.endsWith('/models')) return Response.json({ data: [{ id: 'model' }] });
+    if (options.headers.Authorization === 'Bearer old-secret' && JSON.parse(options.body).max_completion_tokens === 1024) return oldResponse;
+    return Response.json({ choices: [{ message: { content: 'готово' } }], usage: { total_tokens: 2 } });
+  } });
+  cloud.setKey('old-secret');
+  await cloud.listModels();
+  await cloud.connect('model');
+  const old = cloud.chat([{ role: 'user', content: 'Привет' }]);
+  cloud.setKey('new-secret');
+  await cloud.listModels();
+  await cloud.connect('model');
+  rejectOldRequest(new Response(null, { status: 401 }));
+  await assert.rejects(old, { code: 'STALE' });
+  assert.equal(cloud.status().connected, true);
+  assert.equal(cloud.status().error, null);
+  cloud.clear();
+  assert.equal(cloud.status().usage.total_tokens, 0);
 });

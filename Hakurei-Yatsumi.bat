@@ -7,7 +7,7 @@ if not exist "%YATSUMI_PS%" (
  if not defined CI pause
  exit /b 1
 )
-"%YATSUMI_PS%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%YATSUMI_ROOT%scripts\setup-and-start.ps1" -ProjectRoot "%YATSUMI_ROOT%" %*
+"%YATSUMI_PS%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%YATSUMI_ROOT%scripts\setup-and-start.ps1" -ProjectRoot "%YATSUMI_ROOT%." %*
 set "YATSUMI_EXIT=%ERRORLEVEL%"
 if not "%YATSUMI_EXIT%"=="0" (
  echo Setup failed. See logs\startup.log

@@ -4,7 +4,7 @@ Local-first prototype of Hakurei Yatsumi: Python FastAPI + SQLite + Node.js Expr
 
 ## Windows
 
-Double-click `Hakurei-Yatsumi.bat` from the project folder. The installer checks Python >=3.10 and Node.js >=20, attempts to install missing runtimes, installs dependencies, applies SQLite migrations, and starts both local services. Internet access is required for first-time dependencies. Windows x64 is assumed for fallback installers. Windows compatibility (including Cyrillic paths and parenthesized paths) has not yet been fully tested.
+Double-click `Hakurei-Yatsumi.bat` from the project folder. The installer checks Python >=3.10 and Node.js >=20, attempts to install missing runtimes, installs dependencies, applies SQLite migrations, and starts both local services. Internet access is required for first-time dependencies. Windows x64 is assumed for fallback installers. The Windows workflow covers paths with spaces, Cyrillic characters, parentheses, apostrophes and a mapped drive.
 
 - FastAPI documentation: http://127.0.0.1:8000/docs
 - Node gateway: http://127.0.0.1:3000/api
@@ -16,7 +16,7 @@ Double-click `Hakurei-Yatsumi.bat` from the project folder. The installer checks
 python -m venv .venv
 # activate the virtual environment
 python -m pip install -r backend/requirements.txt
-cd frontend && npm install && cd ..
+cd frontend && npm ci && cd ..
 # set YATSUMI_API_KEY to a long random secret
 python -m backend.app.db
 uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
@@ -25,11 +25,11 @@ uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
 
 ## Database
 
-Migration: `backend/migrations/001_initial.sql`. Tables: users, conversations, messages, memories, character_settings, events, schema_migrations. Database files and secrets are excluded by `.gitignore`.
+Migrations: `backend/migrations/001_initial.sql` and `backend/migrations/002_core_turns.sql`. Tables: users, conversations, messages, memories, character_settings, events, core_turns, schema_migrations. Database files and secrets are excluded by `.gitignore`.
 
 ## Tests
 
-Run `python -m pytest tests -q` from the repository root after installing backend dependencies. This prototype provides storage and APIs, not a complete chat UI or an LLM integration.
+Run `python -m pytest tests -q` from the repository root after installing backend dependencies. Run `npm test --prefix frontend` after installing Node dependencies to check the gateway, storage integration and simulated Cloud.ru responses.
 
 
 ## Windows diagnostics and recovery
@@ -39,7 +39,7 @@ Run `python -m pytest tests -q` from the repository root after installing backen
 - If Python >=3.10 or Node.js >=20 is missing, the launcher tries `winget` (user scope), then signed official Windows x64 installers. Internet access and potentially administrator permission are needed.
 - A moved or broken `.venv` is recreated. Python and Node package installation is retried once.
 - Both services are checked for up to 30 seconds each. Ports 8000/3000 must be free. A failed startup stops processes launched by this attempt.
-- **Verification:** Python API tests and Node syntax checks passed on Linux. Real Windows PowerShell 5.1 execution, Cyrillic paths, and installers have not been tested on Windows yet.
+- **Verification:** GitHub Actions runs the launcher with Windows PowerShell 5.1 and preinstalled Python and Node.js. The runtime fallback installers require a separate check.
 
 
 ## BAT v3: Windows setup and recovery
@@ -63,13 +63,13 @@ Run `Hakurei-Yatsumi.bat` on Windows. PowerShell 5.1 script: `scripts/setup-and-
 
 - Node 20+ / Express gateway binds to `127.0.0.1:3000`; Python binds to `127.0.0.1:8000`.
 - `GET /gateway/health` checks the authenticated Python `/health` endpoint and SQLite connectivity. Returns 503 if unavailable.
-- `/api/*` forwards requests to the local Python API with an internal API key, request ID, 10-second timeout and no redirect following. The gateway rejects remote `PYTHON_API_URL` values, foreign browser Origins, unsupported methods and oversized JSON.
+- `/api/*` forwards requests to the local Python API with an internal API key, request ID, 10-second timeout and no redirect following. The gateway rejects remote `PYTHON_API_URL` values, non-loopback Host headers, cross-origin browser requests, unsupported methods and oversized JSON.
 - Local `ws://127.0.0.1:3000/ws` requires `x-api-key` on the WebSocket upgrade. The current protocol supports `ready`, `ping` and `pong` only; **AI streaming and voice are not implemented yet**.
 - POST requests pass through a bounded in-memory concurrency queue. It is **not durable**; queued work is lost on process termination.
 - Structured JSON operational logs omit message bodies, API keys and query strings. Optional `YATSUMI_NODE_LOG` enables a 2 MiB rotated log file. Existing BAT stdout/stderr logs remain.
 - PowerShell watchdog checks service health every 15 seconds and attempts at most 3 offline restarts per 5 minutes. `scripts/stop.ps1` stops the watchdog and managed services. Disable watchdog with `-NoWatchdog` when running the PowerShell installer directly.
 - Gateway settings: `YATSUMI_NODE_PORT` (default 3000), `YATSUMI_PROXY_TIMEOUT_MS` (10000), `YATSUMI_QUEUE_LIMIT` (32), `YATSUMI_QUEUE_CONCURRENCY` (2), `YATSUMI_NODE_LOG`.
-- Run `cd frontend && npm install && npm test` for Node tests, or `python -m pytest tests -q` for Python tests. Windows CI runs both plus BAT launch scenarios.
+- Run `cd frontend && npm ci && npm test` for Node tests, or `python -m pytest tests -q` for Python tests. Windows CI runs both plus BAT launch scenarios.
 - **Security boundary:** this remains a localhost-only single-user prototype, not an authenticated multi-user web service. Do not expose port 3000 to the internet.
 
 ## Веб-интерфейс и Cloud.ru Foundation Models
@@ -82,7 +82,7 @@ Run `Hakurei-Yatsumi.bat` on Windows. PowerShell 5.1 script: `scripts/setup-and-
 
 Сообщения чата отправляются через локальный Node-сервер в Cloud.ru; ключ никогда не передаётся браузеру обратно. Модели работают в облаке, локальные LLM не требуются. Для доступа нужен действующий ключ, интернет и доступ к Cloud.ru.
 
-**Безопасность:** интерфейс предназначен только для локального использования на доверенном компьютере. Не публикуйте порт 3000 и не открывайте его другим пользователям: это локальное приложение без многопользовательской авторизации. История чата пока хранится в памяти вкладки, не в SQLite.
+**Безопасность:** интерфейс предназначен только для локального использования на доверенном компьютере. Не публикуйте порт 3000 и не открывайте его другим пользователям: это локальное приложение без многопользовательской авторизации. Завершённые сообщения чата сохраняются в локальной SQLite и восстанавливаются при открытии страницы.
 
 Официальная документация: https://cloud.ru/docs/foundation-models/ug/topics/api-ref
 
@@ -96,7 +96,7 @@ Run `Hakurei-Yatsumi.bat` on Windows. PowerShell 5.1 script: `scripts/setup-and-
 - Настройки показывают накопленные токены из поля `usage`, когда Cloud.ru его возвращает. Для потоковой генерации учёт зависит от наличия `usage` в SSE.
 - Выбранный ID модели сохраняется в браузере, но **API-ключ не сохраняется**. После перезапуска Node ключ нужно ввести снова.
 - Индикатор подключения краснеет при ошибке авторизации/доступа; разовая сетевая ошибка запроса не сбрасывает ранее подтверждённое подключение.
-- Запуск тестов: `cd frontend && npm install && npm test`. Без действующего Cloud.ru API-ключа тесты проверяют только имитации ответов, не реальное облачное подключение.
+- Запуск тестов: `cd frontend && npm ci && npm test`. Без действующего Cloud.ru API-ключа тесты проверяют только имитации ответов, не реальное облачное подключение.
 
 ## Yatsumi Core v1
 
@@ -107,7 +107,7 @@ Run `Hakurei-Yatsumi.bat` on Windows. PowerShell 5.1 script: `scripts/setup-and-
 - **Память:** явное сохранение фактов в настройках сайта через `POST /core/memory`. Автоматического извлечения личных данных из диалогов нет.
 - **История:** после успешной генерации пара пользователь/ассистент сохраняется в SQLite; `GET /core/history` восстанавливает последние 30 сообщений.
 - **Хранилище:** используются существующие таблицы users, conversations, messages, memories и защищённый внутренним ключом Python API. `GET /core/session/{user_id}` находит последний разговор.
-- **Ограничение v1:** один локальный владелец `local-owner`, один активный диалог, нет мультипользовательской изоляции. Не публикуйте локальный Node Gateway в интернет.
+- **Ограничение v1:** один локальный владелец `local-owner`, один активный диалог и одна потоковая генерация за раз. Контекст веб-чата берётся из SQLite. Не публикуйте локальный Node Gateway в интернет.
 - **Важное:** если Python/SQLite недоступны, новый диалог через Core не начнётся, даже если Cloud.ru доступен. При ошибке записи ответ не считается успешно завершённым.
 - **Тесты:** `cd frontend && npm test` проверяет модули Core и Cloud на моках. Реальная интеграция требует запуска Node, Python, SQLite и действительного ключа Cloud.ru.
 
@@ -116,8 +116,8 @@ Run `Hakurei-Yatsumi.bat` on Windows. PowerShell 5.1 script: `scripts/setup-and-
 - Миграция `backend/migrations/002_core_turns.sql` создаёт таблицу `core_turns` с уникальным `(conversation_id, request_id)`.
 - Python endpoint `POST /core/conversations/{id}/turns` записывает оба сообщения **в одной транзакции** `BEGIN IMMEDIATE`. При сбое вставки откатываются оба сообщения.
 - Повторный запрос с тем же UUID и тем же содержимым возвращает сохранённую пару без новых вставок; при конфликтующем содержимом возвращается HTTP 409.
-- `GET /core/conversations/{id}/turns/{request_id}` позволяет Node проверить уже завершённый ответ **до** нового обращения к Cloud.ru. В пределах одного процесса Node блокирует параллельные запросы с одинаковым UUID.
-- Интерфейс создаёт UUID для каждого пользовательского сообщения, сохраняет его при ошибке и повторно использует при повторной отправке того же текста. `done` передаётся только после успешной записи.
+- `GET /core/conversations/{id}/turns/{request_id}` позволяет Node проверить уже завершённый ответ **до** нового обращения к Cloud.ru. В пределах одного процесса Node обрабатывает один ответ за раз, включая запросы из разных вкладок.
+- Интерфейс создаёт UUID для каждого пользовательского сообщения, сохраняет его при ошибке и повторно использует при повторной отправке того же текста. `done` передаётся после завершения потока Cloud.ru и успешной записи. При обрыве частичный ответ не сохраняется.
 - Ограничение: если процесс аварийно завершится **после генерации Cloud.ru, но до записи SQLite**, повторный запрос может вызвать повторную генерацию и расход токенов. Для полной защиты от этого потребуется долговременное состояние `in_progress` и механизм восстановления.
 - Проверка: `python -m pytest tests -q`, `cd frontend && npm test`. Добавлены тесты отката SQLite, конфликтов UUID, повторов, параллельной инициализации и Node SSE-интеграции с моками.
 
@@ -129,9 +129,7 @@ Run `Hakurei-Yatsumi.bat` on Windows. PowerShell 5.1 script: `scripts/setup-and-
 
 ### Загрузка своего аватара через настройки
 
-В настройках сайта появился раздел **05 · Аватар Яцуми**. Кнопка «Выбрать изображение» принимает PNG, JPEG и WebP до 10 МБ, показывает предпросмотр и заменяет плавающего персонажа без перезапуска сервера. Выбор хранится локально в **IndexedDB браузера** (не в SQLite и не на сервере); для другого браузера или устройства изображение нужно выбрать снова. «Сбросить аватар» удаляет локальную замену и возвращает стандартный `/images/yatsumi-avatar.png`, если он присутствует. Стандартный PNG всё ещё необходимо отдельно добавить в репозиторий. Перетаскивание и нажатие для открытия чата работают с загруженным изображением.
-
-### Аватар в папке проекта (один владелец)
+В настройках в разделе «Аватар Яцуми» можно загрузить PNG, JPEG или WebP до 10 МБ и посмотреть предпросмотр. Кнопка «Сбросить аватар» удаляет загруженное изображение и возвращает стандартное, если оно установлено.
 
 Теперь загруженный через настройки аватар хранится **на локальном Node-сервере** в `frontend/data/avatar.bin` и доступен после перезапуска или из другого браузера на том же компьютере. `GET/PUT/DELETE /core/avatar` реализованы непосредственно в `frontend/server.js` — отдельного серверного модуля нет. Загрузка принимает PNG, JPEG, WebP до 10 МБ, проверяет сигнатуру и сохраняет файл через временный файл и переименование. Папку `frontend/data/` с пользовательским аватаром не следует коммитить в Git.
 
