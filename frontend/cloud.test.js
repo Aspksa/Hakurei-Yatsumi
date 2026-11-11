@@ -40,6 +40,54 @@ test('Cloud.ru marks connection red after API failure', async () => {
   await cloud.listModels();
   await cloud.connect('model');
   fail = true;
-  await assert.rejects(cloud.listModels(), /отклонён/);
+  await assert.rejects(cloud.listModels(), /недействителен/);
   assert.equal(cloud.status().connected, false);
+});
+
+test('HTTP failures expose safe classifications without credentials', async () => {
+  const codes = [400, 401, 403, 404, 408, 409, 413, 422, 429, 500, 502, 503, 504];
+  for (const code of codes) {
+    const cloud = createCloudService({ fetchImpl: async () => new Response('secret upstream error', { status: code }), sleep: async () => {} });
+    cloud.setKey('private-secret-key');
+    await assert.rejects(cloud.listModels(), error => {
+      assert.equal(error.code, 'HTTP_' + code);
+      assert.equal(error.httpStatus, code);
+      assert.doesNotMatch(error.message, /private-secret-key|secret upstream/);
+      return true;
+    });
+  }
+});
+test('network and malformed JSON produce diagnostic codes', async () => {
+  const cloud = createCloudService({ fetchImpl: async () => { const error = new TypeError('fetch failed'); error.cause = { code: 'ENOTFOUND' }; throw error; }, sleep: async () => {} });
+  cloud.setKey('private-secret-key');
+  await assert.rejects(cloud.listModels(), error => error.code === 'ENOTFOUND');
+  const malformed = createCloudService({ fetchImpl: async () => new Response('{bad json') });
+  malformed.setKey('private-secret-key');
+  await assert.rejects(malformed.listModels(), error => error.code === 'INVALID_JSON');
+});
+test('temporary chat failure keeps confirmed model and reports error', async () => {
+  let failed = false;
+  const cloud = createCloudService({ fetchImpl: async url => {
+    if (failed) return new Response('{}', { status: 503 });
+    return new Response(JSON.stringify(url.endsWith('/models') ? { data: [{ id: 'chat-model' }, { id: 'embedding-model' }] } : { choices: [{ message: { content: 'готово' } }], usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 } }), { status: 200 });
+  } });
+  cloud.setKey('private-secret-key');
+  assert.deepEqual((await cloud.listModels()).map(m => m.id), ['chat-model']);
+  await cloud.connect('chat-model');
+  assert.equal(cloud.status().usage.total_tokens, 5);
+  failed = true;
+  await assert.rejects(cloud.chat([{ role: 'user', content: 'Привет' }]), error => error.code === 'HTTP_503');
+  assert.equal(cloud.status().connected, true);
+});
+test('model list GET retries rate limit with Retry-After', async () => {
+  let calls = 0;
+  const sleeps = [];
+  const cloud = createCloudService({ fetchImpl: async () => {
+    calls++;
+    return calls === 1 ? new Response('{}', { status: 429, headers: { 'retry-after': '1' } }) : new Response('{"data":[{"id":"chat-model"}]}');
+  }, sleep: async ms => sleeps.push(ms) });
+  cloud.setKey('private-secret-key');
+  assert.equal((await cloud.listModels()).length, 1);
+  assert.equal(calls, 2);
+  assert.deepEqual(sleeps, [1000]);
 });
