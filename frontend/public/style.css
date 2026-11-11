@@ -90,7 +90,8 @@ p{margin:0}
 .chat-notice{flex:none;max-height:3.2em;overflow:auto;margin:8px 0 0;padding-inline:22px;color:#f0a1ad;font-size:.86rem;overflow-wrap:anywhere}
 
 /* ---------- плавающий аватар: маленький, перетаскивается ---------- */
-.yatsumi-avatar{position:fixed;z-index:8;right:20px;bottom:104px;width:var(--av-size);aspect-ratio:1;max-width:40vw;max-height:40dvh;padding:0;border:0;background:transparent;cursor:grab;touch-action:none;user-select:none;filter:drop-shadow(0 0 calc(20px*var(--av-glow)) color-mix(in srgb,var(--gold) calc(19%*var(--av-glow)),transparent));transition:filter .15s}
+.yatsumi-avatar{position:fixed;z-index:8;right:20px;bottom:20px;width:var(--av-size);aspect-ratio:1;max-width:40vw;max-height:40dvh;padding:0;border:0;background:transparent;cursor:grab;touch-action:none;user-select:none;filter:drop-shadow(0 0 calc(20px*var(--av-glow)) color-mix(in srgb,var(--gold) calc(19%*var(--av-glow)),transparent));transition:filter .15s,bottom .25s}
+@media(min-width:601px){body:has(.chat.is-open) .yatsumi-avatar{bottom:104px}}
 .yatsumi-avatar:hover,.yatsumi-avatar:focus-visible{filter:drop-shadow(0 0 24px color-mix(in srgb,var(--gold-light) 50%,transparent))}
 .yatsumi-avatar:focus-visible{border-radius:14px}
 .yatsumi-avatar.is-dragging{cursor:grabbing;transition:none}

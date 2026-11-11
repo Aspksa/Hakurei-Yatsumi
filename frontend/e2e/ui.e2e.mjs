@@ -27,11 +27,12 @@ afterEach(async () => {
 
 const json = (route, body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 
-async function openPage({ connected = false, history = [], streamDelay = 0, storage = {}, viewport = { width: 1100, height: 800 }, time = null, avatar = true } = {}) {
+async function openPage({ connected = false, history = [], streamDelay = 0, storage = {}, viewport = { width: 1100, height: 800 }, time = null, avatar = true, avatarHidden = false } = {}) {
   const context = await browser.newContext({ viewport });
   await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: base });
   const page = await context.newPage();
   const calls = [];
+  if (avatarHidden) storage = { ...storage, 'yatsumi-avatar-prefs-v1': JSON.stringify({ show: false }) };
   await page.addInitScript(entries => { for (const [k, v] of Object.entries(entries)) if (!localStorage.getItem(k)) localStorage.setItem(k, v); }, storage);
   await page.route('**/cloud/status', route => json(route, { configured: connected, connected, model: connected ? 'm' : undefined }));
   await page.route('**/cloud/models', route => json(route, { models: [{ id: 'm', name: 'Model' }] }));
@@ -44,7 +45,8 @@ async function openPage({ connected = false, history = [], streamDelay = 0, stor
   if (time) await page.clock.install({ time: new Date(time) });
   if (!avatar) await page.route('**/core/avatar*', route => route.fulfill({ status: 204 }));
   await page.goto(base + '/');
-  if (avatar) await page.locator('#yatsumiAvatar').waitFor({ state: 'visible' });
+  if (avatarHidden) await page.locator('html[data-av="off"]').waitFor({ state: 'attached' });
+  else if (avatar) await page.locator('#yatsumiAvatar').waitFor({ state: 'visible' });
   else await page.locator('html[data-no-avatar]').waitFor({ state: 'attached' });
   return { page, context, calls };
 }
@@ -249,7 +251,7 @@ test('home: calendar days are reachable with the keyboard', async () => {
 const taskCount = (page, n) => page.waitForFunction(count => document.querySelectorAll('.task').length === count, n);
 
 test('home: tasks can be added, completed, deleted and survive a reload', async () => {
-  const { page, context } = await openPage({ time: NOW });
+  const { page, context } = await openPage({ time: NOW, avatarHidden: true });
   await page.fill('#taskText', 'Купить хлеб'); await page.press('#taskText', 'Enter');
   await page.fill('#taskText', 'Оплатить интернет'); await page.fill('#taskDate', '2026-11-10'); await page.click('#taskAdd');
   await taskCount(page, 2);
@@ -275,7 +277,7 @@ test('home: tasks can be added, completed, deleted and survive a reload', async 
 });
 
 test('home: tasks are grouped by due date and quick date chips fill the date', async () => {
-  const { page, context } = await openPage({ time: NOW });
+  const { page, context } = await openPage({ time: NOW, avatarHidden: true });
   await page.fill('#taskText', 'Просроченное'); await page.fill('#taskDate', '2026-11-01'); await page.click('#taskAdd');
   await page.fill('#taskText', 'На сегодня'); await page.click('#dateChips [data-d="0"]');
   assert.equal(await page.inputValue('#taskDate'), '2026-11-04');
@@ -292,7 +294,7 @@ test('home: tasks are grouped by due date and quick date chips fill the date', a
 });
 
 test('home: priorities sort tasks first and tabs split today from upcoming', async () => {
-  const { page, context } = await openPage({ time: NOW });
+  const { page, context } = await openPage({ time: NOW, avatarHidden: true });
   const add = async (text, chip, prio) => {
     await page.fill('#taskText', text);
     if (chip !== null) await page.click(`#dateChips [data-d="${chip}"]`);
@@ -318,7 +320,7 @@ test('home: priorities sort tasks first and tabs split today from upcoming', asy
 });
 
 test('home: a task can be edited in place', async () => {
-  const { page, context } = await openPage({ time: NOW });
+  const { page, context } = await openPage({ time: NOW, avatarHidden: true });
   await page.fill('#taskText', 'Старый текст'); await page.press('#taskText', 'Enter');
   await page.hover('.task'); await page.click('.task-edit');
   await page.fill('.task-edit-input', 'Новый текст'); await page.press('.task-edit-input', 'Enter');
@@ -331,7 +333,7 @@ test('home: a task can be edited in place', async () => {
 });
 
 test('home: a calendar day offers its own tasks', async () => {
-  const { page, context } = await openPage({ time: NOW });
+  const { page, context } = await openPage({ time: NOW, avatarHidden: true });
   await page.fill('#taskText', 'День рождения'); await page.fill('#taskDate', '2026-11-20'); await page.click('#taskAdd');
   await page.fill('#taskText', 'Без даты'); await page.click('#taskAdd');
   await page.click('.cal-day[data-key="2026-11-20"]');
@@ -365,5 +367,14 @@ test('without an avatar the chat opens from a launcher button and is closed by d
   assert.equal(await page.isVisible('#chatPanel'), true);
   await page.click('#chatClose');
   assert.equal(await page.isVisible('#chatPanel'), false);
+  await context.close();
+});
+
+test('the floating avatar keeps clear of the bottom-right task controls until the chat opens', async () => {
+  const { page, context } = await openPage({ time: NOW });
+  const bottomGap = () => page.evaluate(() => innerHeight - document.getElementById('yatsumiAvatar').getBoundingClientRect().bottom);
+  assert.ok(Math.abs(await bottomGap() - 20) < 8, 'sits near the corner while the chat is closed');
+  await openChat(page);
+  await page.waitForFunction(() => innerHeight - document.getElementById('yatsumiAvatar').getBoundingClientRect().bottom > 90);
   await context.close();
 });
