@@ -58,3 +58,16 @@ Run `Hakurei-Yatsumi.bat` on Windows. PowerShell 5.1 script: `scripts/setup-and-
 - Real Windows CI results must be checked in the repository Actions tab; a workflow file alone does not establish a passing run.
 
 **Security:** Localhost-only prototype. Do not expose port 3000 publicly; the Node gateway uses a shared local API key, not per-user authentication.
+
+## Node Gateway v3 (local-only, no website required)
+
+- Node 20+ / Express gateway binds to `127.0.0.1:3000`; Python binds to `127.0.0.1:8000`.
+- `GET /gateway/health` checks the authenticated Python `/health` endpoint and SQLite connectivity. Returns 503 if unavailable.
+- `/api/*` forwards requests to the local Python API with an internal API key, request ID, 10-second timeout and no redirect following. The gateway rejects remote `PYTHON_API_URL` values, foreign browser Origins, unsupported methods and oversized JSON.
+- Local `ws://127.0.0.1:3000/ws` requires `x-api-key` on the WebSocket upgrade. The current protocol supports `ready`, `ping` and `pong` only; **AI streaming and voice are not implemented yet**.
+- POST requests pass through a bounded in-memory concurrency queue. It is **not durable**; queued work is lost on process termination.
+- Structured JSON operational logs omit message bodies, API keys and query strings. Optional `YATSUMI_NODE_LOG` enables a 2 MiB rotated log file. Existing BAT stdout/stderr logs remain.
+- PowerShell watchdog checks service health every 15 seconds and attempts at most 3 offline restarts per 5 minutes. `scripts/stop.ps1` stops the watchdog and managed services. Disable watchdog with `-NoWatchdog` when running the PowerShell installer directly.
+- Gateway settings: `YATSUMI_NODE_PORT` (default 3000), `YATSUMI_PROXY_TIMEOUT_MS` (10000), `YATSUMI_QUEUE_LIMIT` (32), `YATSUMI_QUEUE_CONCURRENCY` (2), `YATSUMI_NODE_LOG`.
+- Run `cd frontend && npm install && npm test` for Node tests, or `python -m pytest tests -q` for Python tests. Windows CI runs both plus BAT launch scenarios.
+- **Security boundary:** this remains a localhost-only single-user prototype, not an authenticated multi-user web service. Do not expose port 3000 to the internet.
