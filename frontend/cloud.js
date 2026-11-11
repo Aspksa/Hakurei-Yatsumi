@@ -1,72 +1,150 @@
 import { randomUUID } from 'node:crypto';
 
-const CLOUD_URL = 'https://foundation-models.api.cloud.ru/v1';
-export function createCloudService({ fetchImpl = fetch, timeoutMs = 12000 } = {}) {
-  let key = '';
-  let selected = '';
-  let connected = false;
-  let models = [];
-  let lastError = '';
-  function status() {
-    return { configured: Boolean(key), connected, model: selected || null, modelsCount: models.length, error: lastError || null };
+const BASE = 'https://foundation-models.api.cloud.ru/v1';
+const retryable = new Set([408, 429, 500, 502, 503, 504]);
+const httpMessages = {
+  400: 'Некорректные параметры запроса', 401: 'API-ключ Cloud.ru недействителен или просрочен',
+  403: 'Недостаточно прав для Cloud.ru или выбранной модели', 404: 'Модель или адрес API не найдены',
+  408: 'Cloud.ru не успел обработать запрос', 409: 'Конфликт состояния Cloud.ru',
+  413: 'Запрос слишком большой', 422: 'Cloud.ru отклонил параметры модели',
+  429: 'Лимит запросов Cloud.ru превышен', 500: 'Внутренняя ошибка Cloud.ru',
+  502: 'Ошибка шлюза Cloud.ru', 503: 'Cloud.ru временно недоступен',
+  504: 'Истекло время ожидания Cloud.ru'
+};
+export class CloudError extends Error {
+  constructor(code, message, httpStatus = 502, retryAfter = null) {
+    super(message);
+    this.name = 'CloudError'; this.code = code; this.httpStatus = httpStatus;
+    this.retryAfter = retryAfter;
   }
-  async function call(path, options = {}) {
-    if (!key) throw new Error('Сначала укажите API-ключ Cloud.ru');
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+}
+function parseRetryAfter(value) {
+  if (!value) return null;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds)) return Math.min(30, Math.max(0, seconds));
+  const date = Date.parse(value);
+  return Number.isFinite(date) ? Math.min(30, Math.max(0, (date - Date.now()) / 1000)) : null;
+}
+function networkError(error) {
+  if (error instanceof CloudError) return error;
+  const cause = error?.cause?.code || error?.code || '';
+  if (error?.name === 'AbortError' || error?.name === 'TimeoutError') return new CloudError('TIMEOUT', 'Превышено время ожидания Cloud.ru', 504);
+  const names = { ENOTFOUND: 'DNS Cloud.ru не найден', ECONNREFUSED: 'Соединение с Cloud.ru отклонено', ECONNRESET: 'Соединение с Cloud.ru разорвано', ETIMEDOUT: 'Сетевой таймаут Cloud.ru', CERT_HAS_EXPIRED: 'Сертификат Cloud.ru просрочен', UNABLE_TO_VERIFY_LEAF_SIGNATURE: 'Ошибка проверки TLS-сертификата' };
+  return new CloudError(cause || 'NETWORK', names[cause] || 'Сетевая ошибка подключения к Cloud.ru', 502);
+}
+function chatCapable(model) {
+  const id = model.id.toLowerCase();
+  const kind = String(model.type || model.task || '').toLowerCase();
+  return !/(embedding|rerank|re-rank|ocr|speech|transcri|whisper|tts|image-gen)/.test(id + ' ' + kind);
+}
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+export function createCloudService({ fetchImpl = fetch, timeoutMs = 60000, sleep = wait } = {}) {
+  let key = '', selected = '', connected = false, models = [], lastError = null;
+  let verifiedAt = null, usage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+  let generation = 0;
+  const status = () => ({ configured: Boolean(key), connected, model: selected || null, modelsCount: models.length, error: lastError, verifiedAt, usage: { ...usage } });
+  function invalidate() { generation++; connected = false; verifiedAt = null; }
+  function fail(error, affectConnection = false) {
+    const problem = networkError(error);
+    lastError = { code: problem.code, message: problem.message, status: problem.httpStatus, retryAfter: problem.retryAfter };
+    if (affectConnection) invalidate();
+    return problem;
+  }
+  async function call(path, { method = 'GET', body, retries = 0, signal } = {}) {
+    if (!key) throw new CloudError('NO_KEY', 'Сначала укажите API-ключ Cloud.ru', 400);
+    const token = key;
+    for (let attempt = 0; ; attempt++) {
+      const controller = new AbortController();
+      const onAbort = () => controller.abort();
+      signal?.addEventListener('abort', onAbort, { once: true });
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetchImpl(BASE + path, {
+          method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'content-type': 'application/json' } : {}) },
+          ...(body ? { body: JSON.stringify(body) } : {}), redirect: 'manual', signal: controller.signal
+        });
+        if (response.status >= 300 && response.status < 400) throw new CloudError('REDIRECT', 'Неожиданное перенаправление Cloud.ru', 502);
+        if (!response.ok) {
+          const retryAfter = parseRetryAfter(response.headers.get('retry-after'));
+          if (attempt < retries && retryable.has(response.status)) {
+            await sleep(Math.min(2000, retryAfter === null ? 250 * 2 ** attempt : retryAfter * 1000));
+            continue;
+          }
+          throw new CloudError('HTTP_' + response.status, httpMessages[response.status] || 'Ошибка Cloud.ru: HTTP ' + response.status, response.status, retryAfter);
+        }
+        try { return await response.json(); }
+        catch { throw new CloudError('INVALID_JSON', 'Cloud.ru вернул некорректный JSON', 502); }
+      } catch (error) {
+        const problem = controller.signal.aborted && !signal?.aborted ? new CloudError('TIMEOUT', 'Превышено время ожидания Cloud.ru', 504) : networkError(error);
+        if (attempt < retries && ['NETWORK', 'ENOTFOUND', 'ECONNRESET', 'ETIMEDOUT', 'TIMEOUT'].includes(problem.code)) {
+          await sleep(250 * 2 ** attempt); continue;
+        }
+        throw problem;
+      } finally { clearTimeout(timer); signal?.removeEventListener('abort', onAbort); }
+    }
+  }
+  function collectUsage(value) {
+    if (!value || typeof value !== 'object') return;
+    for (const name of Object.keys(usage)) {
+      if (Number.isFinite(value[name]) && value[name] >= 0) usage[name] += value[name];
+    }
+  }
+  async function listModels() {
+    const epoch = generation;
     try {
-      const response = await fetchImpl(CLOUD_URL + path, {
-        ...options,
-        headers: { Authorization: 'Bearer ' + key, ...(options.body ? { 'content-type': 'application/json' } : {}) },
-        signal: controller.signal,
-        redirect: 'manual'
-      });
-      if (!response.ok) throw new Error(response.status === 401 || response.status === 403 ? 'Ключ Cloud.ru отклонён' : 'Cloud.ru API: HTTP ' + response.status);
-      return await response.json();
-    } finally { clearTimeout(timer); }
+      const data = await call('/models', { retries: 2 });
+      if (epoch !== generation) throw new CloudError('STALE', 'Ключ изменился во время запроса', 409);
+      if (!Array.isArray(data?.data)) throw new CloudError('INVALID_MODELS', 'Cloud.ru вернул некорректный каталог моделей', 502);
+      models = data.data.filter(item => item && typeof item.id === 'string' && chatCapable(item))
+        .map(item => ({ id: item.id, name: item.name || item.id, type: item.type || 'chat' }))
+        .sort((a, b) => a.id.localeCompare(b.id));
+      lastError = null;
+      return models;
+    } catch (error) { throw fail(error, false); }
+  }
+  async function connect(model) {
+    if (typeof model !== 'string' || !models.some(item => item.id === model)) throw new CloudError('MODEL', 'Выберите чат-модель из загруженного списка', 400);
+    invalidate(); selected = model;
+    const epoch = generation;
+    try {
+      const data = await call('/chat/completions', { method: 'POST', body: { model, messages: [{ role: 'user', content: 'Ответь одним словом: готово' }], max_tokens: 16 } });
+      if (epoch !== generation) throw new CloudError('STALE', 'Настройки изменились во время подключения', 409);
+      if (typeof data?.choices?.[0]?.message?.content !== 'string') throw new CloudError('INVALID_RESPONSE', 'Модель не вернула текстовый ответ', 502);
+      collectUsage(data.usage); connected = true; verifiedAt = new Date().toISOString(); lastError = null;
+      return status();
+    } catch (error) { throw fail(error, true); }
+  }
+  function validateMessages(messages) {
+    if (!Array.isArray(messages) || !messages.length || messages.length > 30 ||
+      messages.some(item => !item || !['user', 'assistant'].includes(item.role) || typeof item.content !== 'string' || !item.content.trim() || item.content.length > 8000)) {
+      throw new CloudError('MESSAGES', 'Некорректная история диалога', 400);
+    }
+  }
+  async function chat(messages) {
+    if (!connected || !selected) throw new CloudError('DISCONNECTED', 'Сначала подключите модель', 409);
+    validateMessages(messages);
+    const epoch = generation, model = selected;
+    try {
+      const data = await call('/chat/completions', { method: 'POST', body: { model, messages, max_tokens: 1024 } });
+      if (epoch !== generation) throw new CloudError('STALE', 'Настройки изменились во время ответа', 409);
+      const answer = data?.choices?.[0]?.message?.content;
+      if (typeof answer !== 'string' || !answer.trim()) throw new CloudError('INVALID_RESPONSE', 'Модель вернула пустой ответ', 502);
+      collectUsage(data.usage); connected = true; verifiedAt = new Date().toISOString(); lastError = null;
+      return { id: randomUUID(), model, content: answer, usage: data.usage || null, finishReason: data?.choices?.[0]?.finish_reason || null };
+    } catch (error) {
+      const problem = networkError(error);
+      // A transient request error is not proof that the model or credentials stopped working.
+      throw fail(problem, [401, 403, 404].includes(problem.httpStatus) || problem.code === 'STALE');
+    }
   }
   return {
-    status,
+    status, listModels, connect, chat,
     setKey(value) {
-      if (typeof value !== 'string' || value.trim().length < 8 || value.length > 4096) throw new Error('Некорректный API-ключ');
-      key = value.trim();
-      selected = ''; connected = false; models = []; lastError = '';
+      if (typeof value !== 'string' || value.trim().length < 8 || value.length > 4096 || /[\r\n]/.test(value)) throw new CloudError('KEY', 'Некорректный API-ключ', 400);
+      invalidate(); key = value.trim(); selected = ''; models = []; lastError = null; usage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
       return status();
     },
-    clear() { key = ''; selected = ''; connected = false; models = []; lastError = ''; return status(); },
-    async listModels() {
-      try {
-        const data = await call('/models');
-        if (!Array.isArray(data.data)) throw new Error('Некорректный ответ каталога моделей');
-        models = data.data.filter(item => typeof item?.id === 'string').map(item => ({ id: item.id, name: item.id })).sort((a, b) => a.id.localeCompare(b.id));
-        lastError = '';
-        return models;
-      } catch (error) { connected = false; lastError = error.message; throw error; }
-    },
-    async connect(model) {
-      if (typeof model !== 'string' || !models.some(item => item.id === model)) throw new Error('Выберите модель из загруженного списка');
-      selected = model;
-      connected = false;
-      try {
-        // Confirm API reachability and model presence; generation is verified on first chat.
-        await this.listModels();
-        if (!models.some(item => item.id === selected)) throw new Error('Модель больше недоступна');
-        const probe = await call('/chat/completions', { method: 'POST', body: JSON.stringify({ model: selected, messages: [{ role: 'user', content: 'Ответь одним словом: готово' }], max_tokens: 12 }) });
-        if (typeof probe?.choices?.[0]?.message?.content !== 'string') throw new Error('Модель не ответила на проверку');
-        connected = true; lastError = '';
-        return status();
-      } catch (error) { connected = false; lastError = error.message; throw error; }
-    },
-    async chat(messages) {
-      if (!connected || !selected) throw new Error('Сначала подключите модель');
-      if (!Array.isArray(messages) || messages.length < 1 || messages.length > 30 || messages.some(item => !['user', 'assistant'].includes(item?.role) || typeof item.content !== 'string' || item.content.length > 8000)) throw new Error('Некорректная история диалога');
-      try {
-        const data = await call('/chat/completions', { method: 'POST', body: JSON.stringify({ model: selected, messages, max_tokens: 1024 }) });
-        const answer = data?.choices?.[0]?.message?.content;
-        if (typeof answer !== 'string') throw new Error('Модель вернула пустой ответ');
-        connected = true; lastError = '';
-        return { id: randomUUID(), model: selected, content: answer };
-      } catch (error) { connected = false; lastError = error.message; throw error; }
-    }
+    clear() { invalidate(); key = ''; selected = ''; models = []; lastError = null; return status(); }
   };
 }
