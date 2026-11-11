@@ -71,3 +71,17 @@ Run `Hakurei-Yatsumi.bat` on Windows. PowerShell 5.1 script: `scripts/setup-and-
 - Gateway settings: `YATSUMI_NODE_PORT` (default 3000), `YATSUMI_PROXY_TIMEOUT_MS` (10000), `YATSUMI_QUEUE_LIMIT` (32), `YATSUMI_QUEUE_CONCURRENCY` (2), `YATSUMI_NODE_LOG`.
 - Run `cd frontend && npm install && npm test` for Node tests, or `python -m pytest tests -q` for Python tests. Windows CI runs both plus BAT launch scenarios.
 - **Security boundary:** this remains a localhost-only single-user prototype, not an authenticated multi-user web service. Do not expose port 3000 to the internet.
+
+## Веб-интерфейс и Cloud.ru Foundation Models
+
+Запустите `Hakurei-Yatsumi.bat` — браузер откроет `http://127.0.0.1:3000/`. Нажмите **векторную шестерёнку в правом верхнем углу** и выполните три шага:
+
+1. Вставьте **API-ключ Foundation Models** от Cloud.ru. Ключ остаётся в памяти локального Node-процесса и не записывается в браузерное хранилище или SQLite. После перезапуска потребуется вставить его снова.
+2. Каталог моделей загружается автоматически через `GET https://foundation-models.api.cloud.ru/v1/models`; выберите модель.
+3. Нажмите **Подключить модель**. Сервер отправляет короткий проверочный запрос `POST /v1/chat/completions`. **Зелёный** индикатор означает успешный ответ модели; **красный** — нет подтверждённого подключения. Проверка может расходовать небольшое число токенов.
+
+Сообщения чата отправляются через локальный Node-сервер в Cloud.ru; ключ никогда не передаётся браузеру обратно. Модели работают в облаке, локальные LLM не требуются. Для доступа нужен действующий ключ, интернет и доступ к Cloud.ru.
+
+**Безопасность:** интерфейс предназначен только для локального использования на доверенном компьютере. Не публикуйте порт 3000 и не открывайте его другим пользователям: это локальное приложение без многопользовательской авторизации. История чата пока хранится в памяти вкладки, не в SQLite.
+
+Официальная документация: https://cloud.ru/docs/foundation-models/ug/topics/api-ref
