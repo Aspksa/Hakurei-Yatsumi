@@ -114,3 +114,19 @@ body{min-width:280px;min-height:100dvh;overflow-x:hidden}
  .conversation{resize:none}
  .icon-button,.close{min-width:40px;min-height:40px}
 }
+
+/* Browser/OS display scaling: CSS pixels, not transform zoom (which breaks input and dragging). */
+:root{font-size:clamp(14px,0.875rem + 0.1vw,18px);-webkit-text-size-adjust:100%;text-size-adjust:100%}
+.shell,.workspace{max-width:100%;min-width:0}
+.topbar,.main,.composer-wrap,.panel-head,.panel-body,.panel-foot{min-width:0}
+.topbar{min-height:0}
+.main{min-height:0;min-width:0;overflow:auto}
+.conversation{box-sizing:border-box;min-width:0;max-width:100%;max-height:100%;min-height:min(120px,100%);width:min(800px,100%);height:min(60dvh,620px);resize:both}
+.panel{max-height:100dvh;min-height:0}
+.panel-body{min-height:0;overflow-y:auto}
+.step-content,.key-input,.select-wrap,.connect-row{min-width:0;max-width:100%}
+.step-content input,.step-content select{max-width:100%}
+.yatsumi-avatar{max-width:min(30vw,210px);max-height:min(32dvh,250px)}
+@media(max-width:600px){.conversation{width:100%;max-height:100%;height:min(50dvh,480px)}}
+@media(max-height:450px){.conversation{height:min(38dvh,240px);min-height:60px}.topbar{height:48px}.footer-note{display:none}}
+@media(hover:none),(pointer:coarse){.conversation{resize:none}}
