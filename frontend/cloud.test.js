@@ -25,7 +25,7 @@ test('Cloud.ru key stays private in status and model list loads dynamically', as
   assert.equal(cloud.status().configured, false);
 });
 test('Cloud.ru rejects invalid models and malformed messages', async () => {
-  const cloud = createCloudService({ fetchImpl: async () => new Response(JSON.stringify({ data: [{ id: 'model' }] }), { status: 200 }) });
+  const cloud = createCloudService({ fetchImpl: async url => new Response(JSON.stringify(url.endsWith('/models') ? { data: [{ id: 'model' }] } : { choices: [{ message: { content: 'готово' } }] }), { status: 200 }) });
   assert.throws(() => cloud.setKey('short'), /ключ/);
   cloud.setKey('valid-secret-key');
   await cloud.listModels();
@@ -35,7 +35,7 @@ test('Cloud.ru rejects invalid models and malformed messages', async () => {
 });
 test('Cloud.ru marks connection red after API failure', async () => {
   let fail = false;
-  const cloud = createCloudService({ fetchImpl: async () => fail ? new Response('{}', { status: 401 }) : new Response(JSON.stringify({ data: [{ id: 'model' }] }), { status: 200 }) });
+  const cloud = createCloudService({ fetchImpl: async () => fail ? new Response('{}', { status: 401 }) : new Response(JSON.stringify({ data: [{ id: 'model' }], choices: [{ message: { content: 'готово' } }] }), { status: 200 }) });
   cloud.setKey('valid-secret-key');
   await cloud.listModels();
   await cloud.connect('model');
