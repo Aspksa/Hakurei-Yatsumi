@@ -26,7 +26,7 @@ function setStatus(state) {
   $('panelStatus').textContent = label;
   const usage = state.usage ?? {};
   $('tokenUsage').textContent = 'Токены: ' + (usage.total_tokens || 0) + ' · вход ' + (usage.prompt_tokens || 0) + ' · выход ' + (usage.completion_tokens || 0);
-  message.placeholder = state.connected ? 'Напиши сообщение Яцуми…' : 'Подключите модель в настройках…';
+  message.placeholder = state.connected ? 'Напиши сообщение Яцуми…' : 'Сначала подключите модель…';
   updateControls();
 }
 function notice(text) { $('notice').textContent = text; }

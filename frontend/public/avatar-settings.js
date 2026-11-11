@@ -2,6 +2,7 @@ const $ = id => document.getElementById(id);
 const avatar = $('yatsumiAvatar');
 const image = avatar.querySelector('img');
 const preview = $('avatarPreview');
+const hero = $('heroAvatar');
 const placeholder = $('avatarPreviewEmpty');
 const fileInput = $('avatarFile');
 const message = $('avatarMessage');
@@ -17,9 +18,9 @@ function setBusy(busy) {
 function showImage(url) {
   if (objectUrl) URL.revokeObjectURL(objectUrl);
   objectUrl = url;
-  avatar.hidden = preview.hidden = !url;
+  avatar.hidden = preview.hidden = hero.hidden = !url;
   placeholder.hidden = Boolean(url);
-  for (const element of [image, preview]) {
+  for (const element of [image, preview, hero]) {
     if (url) element.src = url;
     else element.removeAttribute('src');
   }
@@ -65,7 +66,7 @@ fileInput.addEventListener('change', async () => {
     }
     showImage(url);
     url = null;
-    message.textContent = 'Аватар сохранён в папке проекта.';
+    message.textContent = 'Аватар сохранён.';
   } catch (error) {
     message.textContent = 'Не удалось сохранить аватар: ' + error.message;
   } finally {
