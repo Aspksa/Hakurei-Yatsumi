@@ -26,7 +26,11 @@ function Rotate([string]$path) {
  }
 }
 function Run([string]$label,[scriptblock]$work) {
- & $work
+ # Windows PowerShell emits native stderr as ErrorRecords, even for exit code zero.
+ $ErrorActionPreference='Continue'
+ $PSNativeCommandUseErrorActionPreference=$false
+ $global:LASTEXITCODE=$null
+ & $work 2>&1 | ForEach-Object {Log ([string]$_)}
  $exit=$LASTEXITCODE
  if ($null -eq $exit -or $exit -ne 0) { throw "$label failed (exit $exit)" }
 }
@@ -77,9 +81,8 @@ function Install-Dependency([string]$id,[string]$url,[string]$ext) {
  $winget=Get-Command winget.exe -ErrorAction SilentlyContinue
  if($winget) {
   try {
-   & $winget.Source install --id $id --exact --source winget --scope user --accept-source-agreements --accept-package-agreements --silent --disable-interactivity 2>&1 | ForEach-Object {Log ([string]$_)}
-   if($LASTEXITCODE -eq 0){return}
-   Log "winget exit code: $LASTEXITCODE"
+   Run 'winget install' {& $winget.Source install --id $id --exact --source winget --scope user --accept-source-agreements --accept-package-agreements --silent --disable-interactivity}
+   return
   }catch{Log "winget: $($_.Exception.Message)"}
  }
  if(-not [Environment]::Is64BitOperatingSystem -or $env:PROCESSOR_ARCHITECTURE -eq 'ARM64'){throw 'Fallback installers require x64 Windows'}
@@ -229,9 +232,9 @@ try {
   Push-Location -LiteralPath (Join-Path $root 'frontend')
   try{Run 'offline Node dependency check (run online if missing)' {& $node -e "require('express'); require('ws')"}}finally{Pop-Location}
  }else{
-  Retry 'pip install' {& $venvPython -m pip install -r (Join-Path $root 'backend\requirements.txt') 2>&1 | ForEach-Object {Log ([string]$_)}}
+  Retry 'pip install' {& $venvPython -m pip --disable-pip-version-check install -r (Join-Path $root 'backend\requirements.txt')}
   Push-Location -LiteralPath (Join-Path $root 'frontend')
-  try{Retry 'npm ci' {& $npm ci --no-audit --no-fund 2>&1 | ForEach-Object {Log ([string]$_)}}}finally{Pop-Location}
+  try{Retry 'npm ci' {& $npm ci --no-audit --no-fund}}finally{Pop-Location}
  }
  Log 'Checking SQLite and creating online backup before migration'
  Run 'SQLite preflight' {& $venvPython -m backend.app.db --preflight}

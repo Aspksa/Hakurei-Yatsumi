@@ -4,7 +4,7 @@ Local-first prototype of Hakurei Yatsumi: Python FastAPI + SQLite + Node.js Expr
 
 ## Windows
 
-Double-click `Hakurei-Yatsumi.bat` from the project folder. The installer checks Python >=3.10 and Node.js >=20, attempts to install missing runtimes, installs dependencies, applies SQLite migrations, and starts both local services. Internet access is required for first-time dependencies. Windows x64 is assumed for fallback installers. Windows compatibility (including Cyrillic paths and parenthesized paths) has not yet been fully tested.
+Double-click `Hakurei-Yatsumi.bat` from the project folder. The installer checks Python >=3.10 and Node.js >=20, attempts to install missing runtimes, installs dependencies, applies SQLite migrations, and starts both local services. Internet access is required for first-time dependencies. Windows x64 is assumed for fallback installers. The Windows workflow covers paths with spaces, Cyrillic characters, parentheses, apostrophes and a mapped drive.
 
 - FastAPI documentation: http://127.0.0.1:8000/docs
 - Node gateway: http://127.0.0.1:3000/api
@@ -39,7 +39,7 @@ Run `python -m pytest tests -q` from the repository root after installing backen
 - If Python >=3.10 or Node.js >=20 is missing, the launcher tries `winget` (user scope), then signed official Windows x64 installers. Internet access and potentially administrator permission are needed.
 - A moved or broken `.venv` is recreated. Python and Node package installation is retried once.
 - Both services are checked for up to 30 seconds each. Ports 8000/3000 must be free. A failed startup stops processes launched by this attempt.
-- **Verification:** Python API tests and Node syntax checks passed on Linux. Real Windows PowerShell 5.1 execution, Cyrillic paths, and installers have not been tested on Windows yet.
+- **Verification:** GitHub Actions runs the launcher with Windows PowerShell 5.1 and preinstalled Python and Node.js. The runtime fallback installers require a separate check.
 
 
 ## BAT v3: Windows setup and recovery
