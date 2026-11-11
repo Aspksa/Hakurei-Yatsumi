@@ -2,6 +2,7 @@ import express from 'express';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCloudService } from './cloud.js';
+import { createYatsumiCore } from './core.js';
 import { createServer } from 'node:http';
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, renameSync, statSync } from 'node:fs';
@@ -89,6 +90,7 @@ export function createGateway({ config = readConfig(), fetchImpl = fetch, logger
   if (url.protocol !== 'http:' || !localHosts.has(url.hostname) || url.pathname !== '/' || url.search || url.hash || url.username || url.password) throw new Error('Invalid local Python origin');
   const app = express();
   const cloud = createCloudService({ fetchImpl });
+  const core = createYatsumiCore({ fetchImpl, apiUrl: config.apiUrl, apiKey: config.apiKey });
   const queue = createTaskQueue({ concurrency: config.queueConcurrency, limit: config.queueLimit });
   const clients = new Map();
   const metrics = { requests: 0, failures: 0, started: Date.now() };
@@ -154,6 +156,14 @@ export function createGateway({ config = readConfig(), fetchImpl = fetch, logger
     try { res.json(await cloud.chat(req.body?.messages)); }
     catch (error) { cloudError(res, error); }
   });
+  app.get('/core/history', async (req, res) => {
+    try { res.json({ messages: await core.history() }); }
+    catch (error) { res.status(503).json({ error: error.message }); }
+  });
+  app.post('/core/memory', async (req, res) => {
+    try { res.json(await core.remember(req.body?.key, req.body?.value)); }
+    catch (error) { res.status(400).json({ error: error.message }); }
+  });
   app.post('/cloud/chat/stream', async (req, res) => {
     const controller = new AbortController();
     res.setHeader('content-type', 'text/event-stream; charset=utf-8');
@@ -163,7 +173,22 @@ export function createGateway({ config = readConfig(), fetchImpl = fetch, logger
     const onClose = () => { if (!res.writableEnded) controller.abort(); };
     res.on('close', onClose);
     try {
-      await cloud.streamChat(req.body?.messages, send, controller.signal);
+      const messages = req.body?.messages;
+      const context = await core.prepare(messages);
+      let answer = '';
+      let completed = false;
+      await cloud.streamChat(context.messages, event => {
+        if (event.type === 'delta') { answer += event.content; send(event); }
+        if (event.type === 'done') completed = true;
+      }, controller.signal, true);
+      if (completed) {
+        try {
+          await core.save(messages.at(-1).content, answer);
+          send({ type: 'done', model: cloud.status().model, usedMemoryKeys: context.usedMemoryKeys });
+        } catch (error) {
+          send({ type: 'error', code: 'SAVE_FAILED', error: 'Ответ получен, но не удалось сохранить диалог в SQLite' });
+        }
+      }
     } catch (error) {
       send({ type: 'error', code: error?.code || 'STREAM', error: error?.message || 'Ошибка Cloud.ru' });
     } finally { res.off('close', onClose); res.end(); }
