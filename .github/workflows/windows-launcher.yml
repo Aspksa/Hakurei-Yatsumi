@@ -116,9 +116,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+      - name: Install Chromium
+        working-directory: frontend
+        timeout-minutes: 4
+        run: npx playwright install chromium
+      # Системные пакеты (в основном шрифты) ставятся через apt. Если зеркала Ubuntu недоступны,
+      # шаг не должен вешать всю проверку: Chromium работает и с библиотеками, уже имеющимися на раннере.
+      - name: Install system dependencies (best effort)
+        working-directory: frontend
+        timeout-minutes: 3
+        continue-on-error: true
+        run: npx playwright install-deps chromium
       - name: Browser UI tests
         working-directory: frontend
-        run: |
-          npm ci --no-audit --no-fund
-          npx playwright install --with-deps chromium
-          npm run test:e2e
+        timeout-minutes: 5
+        run: npm run test:e2e
