@@ -34,6 +34,12 @@ function chatNotice(text) {
   $('chatNotice').textContent = text;
   $('chatNotice').hidden = !text;
 }
+const chatPanel = $('chatPanel');
+function setChatOpen(open) {
+  chatPanel.classList.toggle('is-open', open);
+  $('yatsumiAvatar').setAttribute('aria-expanded', String(open));
+  if (open) { scrollToLatest(); message.focus(); }
+}
 function openSettings() {
   if (!overlay.open) overlay.showModal();
 }
@@ -75,6 +81,7 @@ async function configure(work) {
 }
 $('settingsOpen').addEventListener('click', openSettings);
 $('settingsClose').addEventListener('click', closeSettings);
+$('chatClose').addEventListener('click', () => { setChatOpen(false); $('yatsumiAvatar').focus(); });
 $('settingsCloseBackdrop').addEventListener('click', closeSettings);
 $('toggleKey').addEventListener('click', () => {
   const visible = $('apiKey').type === 'password';
@@ -99,7 +106,7 @@ $('connectModel').addEventListener('click', () => configure(async () => {
   try { localStorage.setItem('yatsumi-cloud-model', state.model || ''); } catch {}
   notice('Модель подключена. Можно начать диалог.');
   if (overlay.open) closeSettings();
-  message.focus();
+  setChatOpen(true);
 }));
 $('forgetKey').addEventListener('click', () => configure(async () => {
   setStatus(await api('/cloud/key', { method: 'DELETE' }));
@@ -276,5 +283,5 @@ avatar.addEventListener('pointercancel', finishDrag);
 avatar.addEventListener('lostpointercapture', finishDrag);
 avatar.addEventListener('click', event => {
   if (suppressClick && event.detail) { suppressClick = false; return; }
-  message.focus();
+  setChatOpen(!chatPanel.classList.contains('is-open'));
 });

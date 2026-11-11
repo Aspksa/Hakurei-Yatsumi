@@ -43,9 +43,7 @@ p{margin:0}
 ::selection{background:var(--gold);color:#000}
 *{scrollbar-color:var(--line-strong) transparent;scrollbar-width:thin}
 
-/* ---------- каркас: чат по центру ---------- */
-.app{height:100dvh;display:grid;grid-template:minmax(0,1fr)/minmax(0,1fr);min-width:0}
-.corner{position:fixed;z-index:5;top:16px;right:clamp(14px,2.4vw,28px);display:flex;align-items:center;gap:14px}
+/* ---------- каркас: на странице только аватар; чат открывается окном ---------- */
 .connection{display:flex;align-items:center;gap:9px;color:var(--muted);font-size:.86rem;white-space:nowrap}
 .dot{width:8px;height:8px;border-radius:50%;flex:none}
 .dot.red{background:var(--bad);box-shadow:0 0 0 3px #e2596b22}
@@ -53,7 +51,16 @@ p{margin:0}
 .icon-button,.close{display:grid;place-items:center;width:42px;height:42px;border:1px solid var(--line-strong);border-radius:50%;background:var(--black);color:var(--gold);transition:border-color .15s,color .15s,background .15s}
 .icon-button:hover,.close:hover{border-color:var(--gold);color:var(--gold-pale);background:var(--ink-raised)}
 
-.chat{min-width:0;min-height:0;display:flex;flex-direction:column;width:100%;max-width:860px;margin:0 auto;padding:74px clamp(14px,3vw,40px) max(22px,env(safe-area-inset-bottom))}
+.chat{display:none;position:fixed;z-index:6;top:50%;left:50%;transform:translate(-50%,-50%);width:min(100vw - 32px,760px);height:min(100dvh - 48px,780px);flex-direction:column;padding:14px clamp(14px,2.4vw,24px) 18px;background:var(--black);border:1px solid var(--gold-deep);border-radius:22px;box-shadow:0 0 90px -22px #d4af3766}
+.chat.is-open,body:has(#yatsumiAvatar[hidden]) .chat{display:flex}
+body:has(#yatsumiAvatar[hidden]) #chatClose{display:none}
+@media(prefers-reduced-motion:no-preference){
+  .chat.is-open{animation:chat-in .2s cubic-bezier(.2,.8,.2,1)}
+  @keyframes chat-in{from{opacity:0;transform:translate(-50%,calc(-50% + 10px)) scale(.985)}to{opacity:1;transform:translate(-50%,-50%)}}
+}
+.chat-head{flex:none;display:flex;justify-content:space-between;align-items:center;gap:12px;padding-bottom:12px;margin-bottom:6px;border-bottom:1px solid var(--line)}
+.chat-head-actions{display:flex;gap:10px}
+.chat-head .icon-button{width:38px;height:38px}
 
 /* ---------- кнопки ---------- */
 .primary{border:0;border-radius:999px;padding:.82em 1.7em;background:var(--metal);background-size:160% 100%;background-position:0 0;color:#120c00;font-weight:650;letter-spacing:.01em;box-shadow:0 0 0 1px #fff4cf40 inset,0 10px 34px -12px #d4af3799;transition:background-position .35s,box-shadow .2s}
@@ -132,13 +139,12 @@ p{margin:0}
 
 /* ---------- адаптивность ---------- */
 @media(max-width:600px){
-  .corner .connection span:last-child{display:none}
+  .chat{top:104px;left:8px;right:8px;bottom:8px;width:auto;height:auto;transform:none;border-radius:18px;animation:none!important}
   .bubble{max-width:92%}
   .composer{padding-left:18px}
   .yatsumi-avatar{width:88px;top:8px;left:10px;right:auto;bottom:auto}
-  .chat{padding-top:100px}
   .avatar-row{flex-direction:column}
   .panel{border-radius:18px}
 }
-@media(max-height:560px){.chat{padding-top:66px}.yatsumi-avatar{max-height:24dvh}}
+@media(max-height:560px){.chat{height:calc(100dvh - 16px)}.yatsumi-avatar{max-height:24dvh}}
 @media(pointer:coarse){.icon-button,.close{min-width:44px;min-height:44px}}

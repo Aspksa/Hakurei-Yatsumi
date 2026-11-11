@@ -9,14 +9,18 @@
 </head>
 <body>
 <div class="app">
-  <div class="corner">
-    <div class="connection" aria-live="polite"><span id="headerDot" class="dot red"></span><span id="headerStatus">Не подключено</span></div>
-    <button id="settingsOpen" class="icon-button" aria-label="Настройки" title="Настройки">
+  <main class="chat" id="chatPanel" aria-label="Чат с Яцуми">
+    <div class="chat-head">
+      <div class="connection" aria-live="polite"><span id="headerDot" class="dot red"></span><span id="headerStatus">Не подключено</span></div>
+      <div class="chat-head-actions">
+        <button id="settingsOpen" class="icon-button" aria-label="Настройки" title="Настройки">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2h4l.7 2.4 2 .8 2.2-1.2 2.8 2.8-1.2 2.2.8 2L23 11v4l-2.5.7-.8 2 1.2 2.2-2.8 2.8-2.2-1.2-2 .8L14 25h-4l-.7-2.5-2-.8-2.2 1.2-2.8-2.8 1.2-2.2-.8-2L.5 15v-4L3 10.3l.8-2-1.2-2.2 2.8-2.8 2.2 1.2 2-.8L10 2Z" transform="translate(.25 -1.5) scale(.96)"/><circle cx="12" cy="12" r="3.3"/></svg>
     </button>
-  </div>
-
-  <main class="chat">
+        <button id="chatClose" class="icon-button" aria-label="Закрыть чат" title="Закрыть чат">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+    </div>
     <section id="conversation" class="conversation" aria-label="Чат Яцуми" role="log" tabindex="0"></section>
     <form id="chatForm" class="composer">
       <textarea id="message" rows="1" placeholder="Напиши сообщение Яцуми…" aria-label="Сообщение" maxlength="8000"></textarea>
@@ -28,7 +32,7 @@
   </main>
 </div>
 
-<button id="yatsumiAvatar" class="yatsumi-avatar" type="button" aria-label="Яцуми: нажмите, чтобы написать сообщение" title="Перетащите, чтобы передвинуть" hidden><img alt="" draggable="false"></button>
+<button id="yatsumiAvatar" class="yatsumi-avatar" type="button" aria-label="Яцуми: открыть или закрыть чат" aria-controls="chatPanel" aria-expanded="false" title="Нажмите, чтобы открыть чат" hidden><img alt="" draggable="false"></button>
 
 <dialog id="overlay" class="overlay" aria-labelledby="settingsTitle">
   <div class="scrim" id="settingsCloseBackdrop"></div>
@@ -85,7 +89,7 @@
         <div class="avatar-row">
           <div class="avatar-settings-preview"><img id="avatarPreview" alt="Текущий аватар Яцуми" hidden><span id="avatarPreviewEmpty">Нет аватара</span></div>
           <div class="avatar-side">
-            <p>PNG, JPEG или WebP до 10 МБ. Картинка остаётся на этом компьютере. Аватар можно перетаскивать по странице.</p>
+            <p>PNG, JPEG или WebP до 10 МБ. Картинка остаётся на этом компьютере. Нажатие на аватар открывает чат, перетаскивание меняет его место.</p>
             <input id="avatarFile" hidden type="file" accept="image/png,image/jpeg,image/webp" aria-label="Загрузить изображение аватара">
             <div class="avatar-settings-actions"><button class="secondary" id="avatarChoose" type="button">Выбрать изображение</button><button class="link-button" id="avatarReset" type="button">Вернуть стандартный</button></div>
             <div id="avatarMessage" class="small-note" role="status"></div>
