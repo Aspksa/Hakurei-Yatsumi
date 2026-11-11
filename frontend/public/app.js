@@ -123,18 +123,6 @@ $('forgetKey').addEventListener('click', () => configure(async () => {
   try { localStorage.removeItem('yatsumi-cloud-model'); } catch {}
   notice('Ключ сброшен.');
 }));
-$('saveMemory').addEventListener('click', async () => {
-  const key = $('memoryKey').value.trim(), value = $('memoryValue').value.trim();
-  if (!key || !value) return notice('Укажите название и содержание воспоминания.');
-  $('saveMemory').disabled = true;
-  try {
-    await api('/core/memory', { method: 'POST', body: JSON.stringify({ key, value }) });
-    $('memoryKey').value = ''; $('memoryValue').value = '';
-    notice('Воспоминание сохранено в SQLite.');
-  } catch (error) { notice(error.message); }
-  finally { $('saveMemory').disabled = false; }
-});
-
 function bubble(role, content) {
   const element = document.createElement('div');
   element.className = 'bubble ' + role;
@@ -293,6 +281,11 @@ function finishDrag(event) {
 avatar.addEventListener('pointerup', finishDrag);
 avatar.addEventListener('pointercancel', finishDrag);
 avatar.addEventListener('lostpointercapture', finishDrag);
+window.addEventListener('yatsumi:avatar-reset-position', () => {
+  position = undefined;
+  try { localStorage.removeItem(positionKey); } catch {}
+  for (const side of ['left', 'top', 'right', 'bottom']) avatar.style[side] = '';
+});
 avatar.addEventListener('click', event => {
   if (suppressClick && event.detail) { suppressClick = false; return; }
   setChatOpen(!chatPanel.classList.contains('is-open'));
