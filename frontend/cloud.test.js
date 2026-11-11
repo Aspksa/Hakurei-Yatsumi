@@ -91,3 +91,26 @@ test('model list GET retries rate limit with Retry-After', async () => {
   assert.equal(calls, 2);
   assert.deepEqual(sleeps, [1000]);
 });
+
+test('Cloud.ru streams SSE deltas and completion without duplicate POST', async () => {
+  const encoder = new TextEncoder();
+  let posts = 0;
+  const cloud = createCloudService({ fetchImpl: async (url, options) => {
+    if (url.endsWith('/models')) return new Response('{"data":[{"id":"chat-model"}]}');
+    if (!JSON.parse(options.body).stream) return new Response('{"choices":[{"message":{"content":"готово"}}]}');
+    posts++;
+    return new Response(new ReadableStream({ start(controller) {
+      controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"При"}}]}\n\n'));
+      controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"вет"}}]}\n\ndata: [DONE]\n\n'));
+      controller.close();
+    } }), { headers: { 'content-type': 'text/event-stream' } });
+  } });
+  cloud.setKey('private-secret-key');
+  await cloud.listModels();
+  await cloud.connect('chat-model');
+  const events = [];
+  await cloud.streamChat([{ role: 'user', content: 'Привет' }], event => events.push(event));
+  assert.deepEqual(events.map(event => event.type), ['delta', 'delta', 'done']);
+  assert.equal(events.slice(0, 2).map(event => event.content).join(''), 'Привет');
+  assert.equal(posts, 1);
+});
