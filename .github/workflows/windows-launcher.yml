@@ -1,4 +1,4 @@
-name: Windows BAT v3
+name: Windows BAT and Node Gateway v3
 on:
   push:
     branches: [main]
@@ -22,7 +22,7 @@ jobs:
       - name: Check PowerShell 5.1 syntax
         shell: powershell
         run: |
-          $files = @('scripts/setup-and-start.ps1','scripts/stop.ps1','scripts/run-service.ps1')
+          $files = @('scripts/setup-and-start.ps1','scripts/stop.ps1','scripts/watchdog.ps1')
           foreach ($file in $files) {
             $tokens = $null; $errors = $null
             [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file), [ref]$tokens, [ref]$errors) | Out-Null
@@ -55,8 +55,8 @@ jobs:
         run: |
           $root = Get-Content -LiteralPath "$env:RUNNER_TEMP\project-path.txt" -Raw
           $root = $root.Trim()
-          & (Join-Path $root 'scripts\setup-and-start.ps1') -ProjectRoot $root -NoBrowser
-          if ($LASTEXITCODE -ne 0) { throw 'First launch failed' }
+          & (Join-Path $root 'Hakurei-Yatsumi.bat') -NoBrowser
+          if ($LASTEXITCODE -ne 0) { throw 'BAT launch failed' }
           & (Join-Path $root 'scripts\setup-and-start.ps1') -ProjectRoot $root -NoBrowser -Offline
           if ($LASTEXITCODE -ne 0) { throw 'Repeated offline launch failed' }
           & (Join-Path $root 'scripts\stop.ps1') -ProjectRoot $root
