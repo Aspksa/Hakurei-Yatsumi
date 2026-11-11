@@ -165,6 +165,8 @@ test('avatar animation follows the setting and reacts while Yatsumi replies', as
 test('mobile layout has no horizontal overflow', async () => {
   const { page, context } = await openPage({ viewport: { width: 390, height: 780 } });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'home');
+  await page.fill('#taskText', 'Очень длинное название дела, которое должно переноситься на несколько строк без горизонтальной прокрутки'); await page.fill('#taskDate', '2026-11-20'); await page.click('#taskAdd');
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'home with a long task');
   await openChat(page); await page.click('#settingsOpen'); await page.click('#tab-look');
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.click('#tab-home');
@@ -217,27 +219,61 @@ test('home: calendar days are reachable with the keyboard', async () => {
   await context.close();
 });
 
+const taskCount = (page, n) => page.waitForFunction(count => document.querySelectorAll('.task').length === count, n);
+
 test('home: tasks can be added, completed, deleted and survive a reload', async () => {
   const { page, context } = await openPage({ time: NOW });
   await page.fill('#taskText', 'Купить хлеб'); await page.press('#taskText', 'Enter');
   await page.fill('#taskText', 'Оплатить интернет'); await page.fill('#taskDate', '2026-11-10'); await page.click('#taskAdd');
-  assert.equal(await page.locator('.task').count(), 2);
+  await taskCount(page, 2);
   assert.equal(await page.inputValue('#taskDate'), '', 'the date does not stick to the next task');
   assert.equal(await page.textContent('#tasksCount'), 'Осталось: 2');
   assert.equal(await page.locator('.cal-day[data-key="2026-11-10"].has-tasks').count(), 1);
   await page.reload();
-  assert.equal(await page.locator('.task').count(), 2);
+  await taskCount(page, 2);
   await page.locator('.task', { hasText: 'Купить хлеб' }).locator('input[type=checkbox]').click();
-  assert.equal(await page.locator('.task').count(), 1);
+  await taskCount(page, 1); // выполненное уходит из «Активных» после короткой анимации
+  assert.equal(await page.textContent('#ringText'), '50%');
   await page.click('#taskFilter [data-v="done"]');
-  assert.equal(await page.locator('.task').count(), 1);
+  await taskCount(page, 1);
   assert.equal(await page.textContent('.task-text'), 'Купить хлеб');
   await page.click('#taskClearDone');
-  assert.equal(await page.locator('.task').count(), 0);
+  await taskCount(page, 0);
   await page.click('#taskFilter [data-v="active"]');
   await page.locator('.task', { hasText: 'Оплатить интернет' }).locator('.task-del').click();
-  assert.equal(await page.locator('.task').count(), 0);
-  assert.equal(await page.getAttribute('.task-empty', 'hidden'), null);
+  await taskCount(page, 0);
+  assert.equal(await page.isVisible('#taskEmpty'), true);
+  assert.equal(await page.textContent('#ringText'), '0%');
+  await context.close();
+});
+
+test('home: tasks are grouped by due date and quick date chips fill the date', async () => {
+  const { page, context } = await openPage({ time: NOW });
+  await page.fill('#taskText', 'Просроченное'); await page.fill('#taskDate', '2026-11-01'); await page.click('#taskAdd');
+  await page.fill('#taskText', 'На сегодня'); await page.click('#dateChips [data-d="0"]');
+  assert.equal(await page.inputValue('#taskDate'), '2026-11-04');
+  assert.equal(await page.getAttribute('#dateChips [data-d="0"]', 'aria-pressed'), 'true');
+  await page.click('#taskAdd');
+  await page.fill('#taskText', 'На завтра'); await page.click('#dateChips [data-d="1"]'); await page.click('#taskAdd');
+  await page.fill('#taskText', 'Через неделю'); await page.click('#dateChips [data-d="7"]'); await page.click('#taskAdd');
+  await page.fill('#taskText', 'Когда-нибудь'); await page.click('#taskAdd');
+  await taskCount(page, 5);
+  assert.deepEqual(await page.locator('.task-group span').allTextContents(), ['Просрочено', 'Сегодня', 'Завтра', 'Позже', 'Без срока']);
+  assert.equal(await page.locator('.task-date.is-late').count(), 1);
+  assert.equal(await page.inputValue('#taskDate'), '', 'date is cleared after adding');
+  await context.close();
+});
+
+test('home: a task can be edited in place', async () => {
+  const { page, context } = await openPage({ time: NOW });
+  await page.fill('#taskText', 'Старый текст'); await page.press('#taskText', 'Enter');
+  await page.hover('.task'); await page.click('.task-edit');
+  await page.fill('.task-edit-input', 'Новый текст'); await page.press('.task-edit-input', 'Enter');
+  assert.equal(await page.textContent('.task-text'), 'Новый текст');
+  await page.click('.task-edit'); await page.fill('.task-edit-input', 'Не сохранять'); await page.press('.task-edit-input', 'Escape');
+  assert.equal(await page.textContent('.task-text'), 'Новый текст');
+  await page.reload(); await taskCount(page, 1);
+  assert.equal(await page.textContent('.task-text'), 'Новый текст');
   await context.close();
 });
 
@@ -251,7 +287,7 @@ test('home: a calendar day offers its own tasks', async () => {
   assert.equal(await page.locator('.task').count(), 1);
   assert.equal(await page.textContent('.task-text'), 'День рождения');
   await page.click('#dayFilterClear');
-  assert.equal(await page.locator('.task').count(), 2);
+  await taskCount(page, 2);
   await context.close();
 });
 

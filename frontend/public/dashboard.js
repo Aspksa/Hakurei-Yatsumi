@@ -10,8 +10,11 @@ const today = () => keyOf(new Date());
 /* ---------------- часы ---------------- */
 let clockDay = '';
 function renderClock() {
-  const now = new Date();
-  $('clockTime').innerHTML = `${pad(now.getHours())}:${pad(now.getMinutes())}<span class="sec">:${pad(now.getSeconds())}</span>`;
+  const now = new Date(), s = now.getSeconds();
+  $('clockTime').innerHTML = `${pad(now.getHours())}<span class="colon">:</span>${pad(now.getMinutes())}<span class="sec"><span class="colon">:</span>${pad(s)}</span>`;
+  const bar = $('clockBar');
+  if (s === 0 || !bar.style.transform) { bar.style.transition = 'none'; bar.style.transform = `scaleX(${s / 60})`; void bar.offsetWidth; bar.style.transition = ''; }
+  bar.style.transform = `scaleX(${(s + 1) / 60})`;
   const key = keyOf(now);
   if (key !== clockDay) {
     clockDay = key;
@@ -29,9 +32,13 @@ function tick() {
 
 /* ---------------- задачи ---------------- */
 const TASKS_KEY = 'yatsumi-tasks-v1';
+const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+const later = (ms, fn) => reduceMotion() ? fn() : setTimeout(fn, ms);
 let tasks = [];
 let taskFilter = 'active';
 let dayFilter = null;
+let fresh = null;   // id только что добавленного дела: для анимации появления
+let editing = null; // id дела, которое сейчас редактируется
 function loadTasks() {
   try {
     const list = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
@@ -41,50 +48,97 @@ function loadTasks() {
 function saveTasks() { try { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); } catch {} }
 const newId = () => crypto.randomUUID?.() ?? String(Date.now()) + Math.random().toString(16).slice(2);
 const activeOn = key => tasks.filter(t => !t.done && t.date === key).length;
+const shiftKey = (key, days) => { const d = parseKey(key); return keyOf(new Date(d.getFullYear(), d.getMonth(), d.getDate() + days)); };
+const GROUPS = [['late', 'Просрочено'], ['today', 'Сегодня'], ['tomorrow', 'Завтра'], ['later', 'Позже'], ['none', 'Без срока'], ['done', 'Выполнено']];
 
+function groupOf(task, todayKey) {
+  if (task.done) return 'done';
+  if (!task.date) return 'none';
+  return task.date < todayKey ? 'late' : task.date === todayKey ? 'today' : task.date === shiftKey(todayKey, 1) ? 'tomorrow' : 'later';
+}
+function taskItem(task, todayKey) {
+  const li = document.createElement('li');
+  li.className = 'task' + (task.done ? ' is-done' : '') + (task.id === fresh ? ' is-new' : '');
+  li.dataset.id = task.id;
+  const box = Object.assign(document.createElement('input'), { type: 'checkbox', checked: Boolean(task.done), id: 'task-' + task.id });
+  box.className = 'task-check';
+  const body = document.createElement('div');
+  body.className = 'task-body';
+  if (task.id === editing) {
+    const input = Object.assign(document.createElement('input'), { type: 'text', value: task.text, maxLength: 300 });
+    input.className = 'task-edit-input'; input.setAttribute('aria-label', 'Изменить дело');
+    body.append(input);
+    queueMicrotask(() => { input.focus(); input.select(); });
+  } else {
+    const label = Object.assign(document.createElement('label'), { htmlFor: box.id, textContent: task.text });
+    label.className = 'task-text';
+    body.append(label);
+    if (task.date) {
+      const d = parseKey(task.date), late = !task.done && task.date < todayKey;
+      const badge = Object.assign(document.createElement('time'), { textContent: `${d.getDate()} ${SHORT_MONTHS[d.getMonth()]}`, dateTime: task.date });
+      badge.className = 'task-date' + (late ? ' is-late' : task.date === todayKey && !task.done ? ' is-today' : '');
+      badge.title = longDate(task.date) + (late ? ' — просрочено' : '');
+      body.append(badge);
+    }
+  }
+  const actions = document.createElement('div');
+  actions.className = 'task-actions';
+  const edit = Object.assign(document.createElement('button'), { type: 'button', title: 'Изменить', ariaLabel: 'Изменить дело: ' + task.text });
+  edit.className = 'task-edit';
+  edit.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4ZM14 6l4 4"/></svg>';
+  const del = Object.assign(document.createElement('button'), { type: 'button', title: 'Удалить', ariaLabel: 'Удалить дело: ' + task.text });
+  del.className = 'task-del';
+  del.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+  actions.append(edit, del);
+  li.append(box, body, actions);
+  return li;
+}
 function renderTasks() {
   const todayKey = today();
-  const active = tasks.filter(t => !t.done).length;
-  $('tasksCount').textContent = !tasks.length ? '' : active ? `Осталось: ${active}` : 'Всё сделано';
+  const total = tasks.length, doneCount = tasks.filter(t => t.done).length, active = total - doneCount;
+  const percent = total ? Math.round(doneCount / total * 100) : 0;
+  $('tasksCount').textContent = !total ? '' : active ? `Осталось: ${active}` : 'Всё сделано';
+  $('ringFg').style.strokeDashoffset = String(100 - percent);
+  $('ringText').textContent = percent + '%';
+  $('tasksRing').setAttribute('aria-label', `Выполнено ${percent}%`);
+  $('tasksRing').classList.toggle('is-complete', total > 0 && !active);
   $('taskFilter').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === taskFilter)));
   $('dayFilter').hidden = !dayFilter;
   if (dayFilter) $('dayFilterText').textContent = `Дела на ${parseKey(dayFilter).getDate()} ${MONTHS_GENITIVE[parseKey(dayFilter).getMonth()]}`;
+  const typed = $('taskDate').value;
+  $('dateChips').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(Boolean(typed) && typed === shiftKey(todayKey, Number(b.dataset.d)))));
+
   const visible = tasks.filter(t => (taskFilter === 'all' || (taskFilter === 'done') === Boolean(t.done)) && (!dayFilter || t.date === dayFilter));
-  visible.sort((a, b) => (a.done - b.done) || (a.date || '9999').localeCompare(b.date || '9999') || a.created - b.created);
-  const list = $('taskList');
-  list.replaceChildren(...visible.map(task => {
-    const li = document.createElement('li');
-    li.className = 'task' + (task.done ? ' is-done' : '');
-    li.dataset.id = task.id;
-    const label = document.createElement('label');
-    const box = Object.assign(document.createElement('input'), { type: 'checkbox', checked: Boolean(task.done) });
-    const text = Object.assign(document.createElement('span'), { textContent: task.text });
-    text.className = 'task-text';
-    label.append(box, text);
-    li.append(label);
-    if (task.date) {
-      const d = parseKey(task.date);
-      const badge = Object.assign(document.createElement('time'), { textContent: `${d.getDate()} ${SHORT_MONTHS[d.getMonth()]}`, dateTime: task.date });
-      badge.className = 'task-date' + (!task.done && task.date < todayKey ? ' is-late' : task.date === todayKey ? ' is-today' : '');
-      badge.title = longDate(task.date) + (!task.done && task.date < todayKey ? ' — просрочено' : '');
-      li.append(badge);
+  const byGroup = Object.fromEntries(GROUPS.map(([id]) => [id, []]));
+  for (const t of visible) byGroup[groupOf(t, todayKey)].push(t);
+  const nodes = [];
+  for (const [id, title] of GROUPS) {
+    const items = byGroup[id];
+    if (!items.length) continue;
+    items.sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999') || a.created - b.created);
+    if (!dayFilter) {
+      const head = document.createElement('li');
+      head.className = 'task-group g-' + id; head.setAttribute('role', 'presentation');
+      head.innerHTML = '<span></span><b></b>';
+      head.firstChild.textContent = title; head.lastChild.textContent = String(items.length);
+      nodes.push(head);
     }
-    const del = Object.assign(document.createElement('button'), { type: 'button', textContent: '×', title: 'Удалить', ariaLabel: 'Удалить дело: ' + task.text });
-    del.className = 'task-del';
-    li.append(del);
-    return li;
-  }));
+    for (const t of items) nodes.push(taskItem(t, todayKey));
+  }
+  $('taskList').replaceChildren(...nodes);
+  fresh = null;
   const empty = $('taskEmpty');
   empty.hidden = visible.length > 0;
-  empty.textContent = dayFilter ? 'На этот день дел нет.' : taskFilter === 'done' ? 'Выполненных дел нет.' : tasks.length && taskFilter === 'active' ? 'Всё сделано. Отличная работа!' : 'Пока дел нет — добавьте первое.';
-  $('taskClearDone').hidden = !tasks.some(t => t.done);
+  $('taskEmptyText').textContent = dayFilter ? 'На этот день дел нет.' : taskFilter === 'done' ? 'Выполненных дел пока нет.' : total && taskFilter === 'active' ? 'Всё сделано. Отличная работа!' : 'Пока дел нет — добавьте первое.';
+  $('taskClearDone').hidden = !doneCount;
 }
 $('taskForm').addEventListener('submit', event => {
   event.preventDefault();
   const text = $('taskText').value.trim();
   if (!text) { $('taskText').focus(); return; }
   if (tasks.length >= 500) return;
-  tasks.push({ id: newId(), text, date: $('taskDate').value || null, done: false, created: Date.now() });
+  const task = { id: newId(), text, date: $('taskDate').value || null, done: false, created: Date.now() };
+  tasks.push(task); fresh = task.id;
   saveTasks();
   $('taskText').value = '';
   $('taskDate').value = view.selected || '';
@@ -92,17 +146,49 @@ $('taskForm').addEventListener('submit', event => {
   renderTasks(); renderCalendar();
   $('taskText').focus();
 });
+$('dateChips').addEventListener('click', event => {
+  const b = event.target.closest('button');
+  if (!b) return;
+  const key = shiftKey(today(), Number(b.dataset.d));
+  $('taskDate').value = $('taskDate').value === key ? '' : key;
+  renderTasks();
+});
+$('taskDate').addEventListener('change', renderTasks);
 $('taskList').addEventListener('change', event => {
-  const id = event.target.closest('.task')?.dataset.id, task = tasks.find(t => t.id === id);
-  if (!task || event.target.type !== 'checkbox') return;
+  const li = event.target.closest('.task'), task = tasks.find(t => t.id === li?.dataset.id);
+  if (!task || !event.target.classList.contains('task-check')) return;
   task.done = event.target.checked;
-  saveTasks(); renderTasks(); renderCalendar();
+  saveTasks();
+  li.classList.toggle('is-done', task.done);
+  if (task.done) li.classList.add('just-done');
+  // Даём доиграть анимации галочки, затем перерисовываем (дело переезжает в другую группу или фильтр).
+  later(task.done ? 480 : 200, () => { renderTasks(); renderCalendar(); });
 });
 $('taskList').addEventListener('click', event => {
-  if (!event.target.closest('.task-del')) return;
-  const id = event.target.closest('.task').dataset.id;
-  tasks = tasks.filter(t => t.id !== id);
-  saveTasks(); renderTasks(); renderCalendar();
+  const li = event.target.closest('.task');
+  if (!li) return;
+  const id = li.dataset.id;
+  if (event.target.closest('.task-del')) {
+    li.classList.add('is-leaving');
+    later(240, () => { tasks = tasks.filter(t => t.id !== id); saveTasks(); renderTasks(); renderCalendar(); });
+  } else if (event.target.closest('.task-edit')) {
+    editing = id; renderTasks();
+  }
+});
+function finishEdit(input, save) {
+  const id = input.closest('.task')?.dataset.id, task = tasks.find(t => t.id === id);
+  editing = null;
+  const text = input.value.trim();
+  if (save && task && text) { task.text = text; saveTasks(); }
+  renderTasks();
+}
+$('taskList').addEventListener('keydown', event => {
+  if (!event.target.classList.contains('task-edit-input')) return;
+  if (event.key === 'Enter') { event.preventDefault(); finishEdit(event.target, true); }
+  else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); finishEdit(event.target, false); }
+});
+$('taskList').addEventListener('focusout', event => {
+  if (event.target.classList.contains('task-edit-input') && editing) finishEdit(event.target, true);
 });
 $('taskFilter').addEventListener('click', event => { const b = event.target.closest('button'); if (b) { taskFilter = b.dataset.v; renderTasks(); } });
 $('dayFilterClear').addEventListener('click', () => { dayFilter = null; renderTasks(); renderCalendar(); });
@@ -190,10 +276,14 @@ function renderDetail() {
 }
 
 function go(year, month) {
-  const d = new Date(year, month, 1);
+  const d = new Date(year, month, 1), forward = d > new Date(view.year, view.month, 1);
   view.year = d.getFullYear(); view.month = d.getMonth(); view.cursor = null;
   view.followToday = view.year === now0.getFullYear() && view.month === now0.getMonth();
   renderCalendar();
+  const grid = $('calGrid');
+  grid.classList.remove('slide-next', 'slide-prev');
+  void grid.offsetWidth;
+  grid.classList.add(forward ? 'slide-next' : 'slide-prev');
 }
 function select(key) {
   view.selected = key; view.cursor = key;
@@ -235,3 +325,12 @@ renderCalendar();
 renderTasks();
 tick();
 document.addEventListener('visibilitychange', () => { if (!document.hidden) renderClock(); });
+
+// Подсветка карточек следом за курсором.
+document.addEventListener('pointermove', event => {
+  const card = event.target instanceof Element ? event.target.closest('.card') : null;
+  if (!card) return;
+  const rect = card.getBoundingClientRect();
+  card.style.setProperty('--mx', event.clientX - rect.left + 'px');
+  card.style.setProperty('--my', event.clientY - rect.top + 'px');
+}, { passive: true });
