@@ -8,7 +8,7 @@ $script=Join-Path $root 'scripts\setup-and-start.ps1'
 $attempts=New-Object 'System.Collections.Generic.List[datetime]'
 function Healthy([string]$url) {
  try {
-  $key=[IO.File]::ReadAllText((Join-Path $root '.yatsumi-api-key')).Trim()
+  $key=if($env:YATSUMI_API_KEY){$env:YATSUMI_API_KEY}else{[IO.File]::ReadAllText((Join-Path $root '.yatsumi-api-key')).Trim()}
   $response=Invoke-WebRequest -Uri $url -Headers @{'x-api-key'=$key} -UseBasicParsing -TimeoutSec 3
   return $response.StatusCode -eq 200
  }catch{return $false}
