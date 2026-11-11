@@ -36,7 +36,7 @@ jobs:
           node --check frontend/server.js
           cd frontend
           npm install --no-audit --no-fund
-          node --test server.test.js
+          npm test
       - name: Stage path scenarios
         shell: powershell
         run: |
