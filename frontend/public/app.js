@@ -174,3 +174,69 @@ $('message').addEventListener('keydown', event => { if (event.key === 'Enter' &&
     if (preferred && [...$('modelSelect').options].some(option => option.value === preferred)) { $('modelSelect').value = preferred; $('connectModel').disabled = false; }
   } catch { setStatus({ configured: false, connected: false }); }
 })();
+
+
+// Floating Yatsumi: click opens chat; drag moves her anywhere inside the viewport.
+(() => {
+  const avatar = $('yatsumiAvatar');
+  if (!avatar) return;
+  const image = avatar.querySelector('img');
+  // Hide the control if its image has not been deployed yet; never show a broken image.
+  image.addEventListener('load', () => { avatar.hidden = false; });
+  image.addEventListener('error', () => { avatar.hidden = true; });
+  if (image.complete && image.naturalWidth) avatar.hidden = false;
+  const key = 'yatsumi-avatar-position-v1';
+  const clamp = (value, low, high) => Math.max(low, Math.min(value, high));
+  function moveTo(x, y) {
+    const maxX = Math.max(0, window.innerWidth - avatar.offsetWidth);
+    const maxY = Math.max(0, window.innerHeight - avatar.offsetHeight);
+    avatar.style.left = clamp(x, 0, maxX) + 'px';
+    avatar.style.top = clamp(y, 0, maxY) + 'px';
+    avatar.style.right = 'auto';
+    avatar.style.bottom = 'auto';
+  }
+  try {
+    const position = JSON.parse(localStorage.getItem(key));
+    if (Number.isFinite(position?.x) && Number.isFinite(position?.y)) moveTo(position.x, position.y);
+  } catch {}
+  let drag = null;
+  let suppressClick = false;
+  avatar.addEventListener('pointerdown', event => {
+    if (event.button !== 0 || !event.isPrimary) return;
+    const rect = avatar.getBoundingClientRect();
+    drag = { id: event.pointerId, x: event.clientX, y: event.clientY,
+      left: rect.left, top: rect.top, moved: false };
+    suppressClick = false;
+    avatar.setPointerCapture(event.pointerId);
+  });
+  avatar.addEventListener('pointermove', event => {
+    if (!drag || event.pointerId !== drag.id) return;
+    const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
+    if (Math.hypot(dx, dy) > 7) drag.moved = true;
+    if (!drag.moved) return;
+    avatar.classList.add('is-dragging');
+    moveTo(drag.left + dx, drag.top + dy);
+  });
+  function finish(event) {
+    if (!drag || event.pointerId !== drag.id) return;
+    suppressClick = drag.moved;
+    avatar.classList.remove('is-dragging');
+    if (drag.moved) {
+      try { localStorage.setItem(key, JSON.stringify({
+        x: avatar.getBoundingClientRect().left, y: avatar.getBoundingClientRect().top
+      })); } catch {}
+    }
+    drag = null;
+  }
+  avatar.addEventListener('pointerup', finish);
+  avatar.addEventListener('pointercancel', finish);
+  avatar.addEventListener('click', () => {
+    if (suppressClick) { suppressClick = false; return; }
+    $('welcome').hidden = true;
+    $('conversation').hidden = false;
+    $('message').focus();
+  });
+  window.addEventListener('resize', () => {
+    if (avatar.style.left) moveTo(parseFloat(avatar.style.left), parseFloat(avatar.style.top));
+  });
+})();
