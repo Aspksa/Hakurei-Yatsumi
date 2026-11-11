@@ -30,3 +30,13 @@ Migration: `backend/migrations/001_initial.sql`. Tables: users, conversations, m
 ## Tests
 
 Run `python -m pytest tests -q` from the repository root after installing backend dependencies. This prototype provides storage and APIs, not a complete chat UI or an LLM integration.
+
+
+## Windows diagnostics and recovery
+
+- Double-click `Hakurei-Yatsumi.bat`. The launcher uses the BAT directory and passes Unicode paths to PowerShell. Spaces, Cyrillic, parentheses, and alternate drive letters are supported by design.
+- `logs/startup.log` records dependency checks, installation attempts, retries, migrations, service PIDs, health checks, and failures. `logs/python.log` and `logs/node.log` contain server output.
+- If Python >=3.10 or Node.js >=20 is missing, the launcher tries `winget` (user scope), then signed official Windows x64 installers. Internet access and potentially administrator permission are needed.
+- A moved or broken `.venv` is recreated. Python and Node package installation is retried once.
+- Both services are checked for up to 30 seconds each. Ports 8000/3000 must be free. A failed startup stops processes launched by this attempt.
+- **Verification:** Python API tests and Node syntax checks passed on Linux. Real Windows PowerShell 5.1 execution, Cyrillic paths, and installers have not been tested on Windows yet.
