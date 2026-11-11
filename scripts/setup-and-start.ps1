@@ -132,7 +132,16 @@ function Process-State([Diagnostics.Process]$process,[string]$name) {
 function Launch([string]$exe,[string]$arguments,[string]$directory,[string]$name) {
  Rotate (Join-Path $logs "$name.stdout.log")
  Rotate (Join-Path $logs "$name.stderr.log")
- $p=Start-Process -FilePath $exe -ArgumentList $arguments -WorkingDirectory $directory -RedirectStandardOutput (Join-Path $logs "$name.stdout.log") -RedirectStandardError (Join-Path $logs "$name.stderr.log") -PassThru
+ $launchOptions=@{
+  FilePath=$exe
+  ArgumentList=$arguments
+  WorkingDirectory=$directory
+  WindowStyle='Hidden'
+  RedirectStandardOutput=(Join-Path $logs "$name.stdout.log")
+  RedirectStandardError=(Join-Path $logs "$name.stderr.log")
+  PassThru=$true
+ }
+ $p=Start-Process @launchOptions
  try{return (Process-State $p $name)}
  catch{
   if(-not $p.HasExited){$p.Kill()}
