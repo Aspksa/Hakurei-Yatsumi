@@ -1,4 +1,4 @@
-// Browser-local avatar selection. Binary files stay on the device in IndexedDB.
+// The owner avatar is stored in the project, not in browser storage or Cloud.ru.
 const $ = id => document.getElementById(id);
 const avatar = $('yatsumiAvatar');
 const image = avatar.querySelector('img');
@@ -7,36 +7,11 @@ const placeholder = $('avatarPreviewEmpty');
 const fileInput = $('avatarFile');
 const message = $('avatarMessage');
 const DEFAULT_SRC = '/images/yatsumi-avatar.png';
+const ENDPOINT = '/core/avatar';
 const MAX_BYTES = 10 * 1024 * 1024;
 const ACCEPTED = new Set(['image/png', 'image/jpeg', 'image/webp']);
 let objectUrl = null;
 
-function openDatabase() {
-  return new Promise((resolve, reject) => {
-    if (!('indexedDB' in window)) return reject(new Error('IndexedDB недоступна в этом браузере'));
-    const request = indexedDB.open('yatsumi-avatar', 1);
-    request.onupgradeneeded = () => request.result.createObjectStore('assets');
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error || new Error('Ошибка открытия хранилища'));
-  });
-}
-async function store(mode, operation) {
-  const db = await openDatabase();
-  try {
-    return await new Promise((resolve, reject) => {
-      const transaction = db.transaction('assets', mode);
-      const request = operation(transaction.objectStore('assets'));
-      let result;
-      request.onsuccess = () => { result = request.result; };
-      request.onerror = () => reject(request.error || new Error('Ошибка сохранения аватара'));
-      transaction.oncomplete = () => resolve(result);
-      transaction.onerror = () => reject(transaction.error || new Error('Ошибка транзакции'));
-      transaction.onabort = () => reject(transaction.error || new Error('Операция отменена'));
-    });
-  } finally {
-    db.close();
-  }
-}
 function showImage(src) {
   if (objectUrl) URL.revokeObjectURL(objectUrl);
   objectUrl = src.startsWith('blob:') ? src : null;
@@ -47,25 +22,20 @@ function showImage(src) {
   avatar.hidden = false;
 }
 function showDefault() {
-  if (objectUrl) URL.revokeObjectURL(objectUrl);
-  objectUrl = null;
-  image.src = DEFAULT_SRC;
-  preview.src = DEFAULT_SRC;
-  preview.hidden = false;
-  placeholder.hidden = true;
-  // The existing avatar load/error handlers hide it if the default image is absent.
+  showImage(DEFAULT_SRC);
 }
 async function loadSavedAvatar() {
   try {
-    const blob = await store('readonly', assets => assets.get('current'));
-    if (blob instanceof Blob && ACCEPTED.has(blob.type)) {
-      showImage(URL.createObjectURL(blob));
-      return;
-    }
+    const response = await fetch(ENDPOINT, { cache: 'no-store' });
+    if (response.status === 404) { showDefault(); return; }
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const blob = await response.blob();
+    if (!ACCEPTED.has(blob.type)) throw new Error('Неверный формат сохранённого аватара');
+    showImage(URL.createObjectURL(blob));
   } catch (error) {
-    message.textContent = 'Локальное хранилище недоступно: ' + error.message;
+    showDefault();
+    message.textContent = 'Не удалось загрузить аватар из проекта: ' + error.message;
   }
-  showDefault();
 }
 function validateImage(file) {
   return new Promise((resolve, reject) => {
@@ -86,37 +56,32 @@ fileInput.addEventListener('change', async () => {
   const file = fileInput.files?.[0];
   if (!file) return;
   fileInput.value = '';
-  if (!ACCEPTED.has(file.type)) {
-    message.textContent = 'Поддерживаются только PNG, JPEG и WebP.';
-    return;
-  }
-  if (file.size > MAX_BYTES || file.size === 0) {
-    message.textContent = 'Размер файла должен быть от 1 байта до 10 МБ.';
-    return;
-  }
+  if (!ACCEPTED.has(file.type)) { message.textContent = 'Поддерживаются PNG, JPEG и WebP.'; return; }
+  if (file.size > MAX_BYTES || file.size === 0) { message.textContent = 'Размер файла должен быть от 1 байта до 10 МБ.'; return; }
   $('avatarChoose').disabled = true;
   try {
     await validateImage(file);
-    await store('readwrite', assets => assets.put(file, 'current'));
+    const response = await fetch(ENDPOINT, { method: 'PUT', headers: { 'content-type': file.type }, body: file });
+    if (!response.ok) {
+      const details = await response.json().catch(() => ({}));
+      throw new Error(details.error || 'HTTP ' + response.status);
+    }
     showImage(URL.createObjectURL(file));
-    message.textContent = 'Аватар обновлён и сохранён в этом браузере.';
+    message.textContent = 'Аватар сохранён в папке проекта. Он останется после перезапуска и доступен в другом браузере на этом компьютере.';
   } catch (error) {
     message.textContent = 'Не удалось сохранить аватар: ' + error.message;
-  } finally {
-    $('avatarChoose').disabled = false;
-  }
+  } finally { $('avatarChoose').disabled = false; }
 });
 $('avatarReset').addEventListener('click', async () => {
   $('avatarReset').disabled = true;
   try {
-    await store('readwrite', assets => assets.delete('current'));
+    const response = await fetch(ENDPOINT, { method: 'DELETE' });
+    if (!response.ok) throw new Error('HTTP ' + response.status);
     showDefault();
-    message.textContent = 'Выбранный аватар удалён. Восстановлен стандартный вариант (если установлен).';
+    message.textContent = 'Загруженный аватар удалён из проекта. Восстановлен стандартный (если он установлен).';
   } catch (error) {
     message.textContent = 'Не удалось сбросить аватар: ' + error.message;
-  } finally {
-    $('avatarReset').disabled = false;
-  }
+  } finally { $('avatarReset').disabled = false; }
 });
 image.addEventListener('error', () => {
   if (image.src.endsWith(DEFAULT_SRC)) {
