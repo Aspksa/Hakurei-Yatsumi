@@ -90,6 +90,8 @@ test('message actions: copy, edit and retry', async () => {
   await page.fill('#message', '');
   await page.locator('.msg.assistant [data-act="retry"]').click();
   await page.locator('.msg').nth(3).waitFor();
+  // Ждём конец ответа: пока идёт набор, кнопки под сообщением скрыты.
+  await page.locator('.bubble.typing').waitFor({ state: 'detached' });
   assert.equal(calls.length, 1);
   assert.equal(calls[0].message, 'Привет');
   assert.equal(await page.locator('.msg').count(), 4);
