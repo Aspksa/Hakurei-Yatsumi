@@ -34,6 +34,9 @@ jobs:
           python -m pip install -r backend/requirements.txt
           python -m pytest tests -q
           node --check frontend/server.js
+          cd frontend
+          npm install --no-audit --no-fund
+          node --test server.test.js
       - name: Stage path scenarios
         shell: powershell
         run: |
