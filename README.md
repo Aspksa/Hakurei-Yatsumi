@@ -6,6 +6,7 @@ Local-first prototype of Hakurei Yatsumi: Python FastAPI + SQLite + Node.js Expr
 
 Double-click `Hakurei-Yatsumi.bat` from the project folder. The installer checks Python >=3.10 and Node.js >=20, attempts to install missing runtimes, installs dependencies, applies SQLite migrations, and starts both local services. Internet access is required for first-time dependencies. Windows x64 is assumed for fallback installers. The Windows workflow covers paths with spaces, Cyrillic characters, parentheses, apostrophes and a mapped drive.
 
+- The BAT adds one Yatsumi icon to the Windows notification area. Click it to open the chat, or right-click it and choose «Завершить работу Яцуми» to stop the local services. Windows may place the icon under the arrow next to the clock.
 - FastAPI documentation: http://127.0.0.1:8000/docs
 - Node gateway: http://127.0.0.1:3000/api
 - Both services bind to localhost; this is not a public deployment.
@@ -74,7 +75,7 @@ Run `Hakurei-Yatsumi.bat` on Windows. PowerShell 5.1 script: `scripts/setup-and-
 
 ## Веб-интерфейс и Cloud.ru Foundation Models
 
-Запустите `Hakurei-Yatsumi.bat` — браузер откроет `http://127.0.0.1:3000/`. Нажмите **векторную шестерёнку в правом верхнем углу** и выполните три шага:
+Запустите `Hakurei-Yatsumi.bat` и нажмите значок Яцуми рядом с часами Windows. Он откроет `http://127.0.0.1:3000/` в браузере. Нажмите **векторную шестерёнку в правом верхнем углу** и выполните три шага:
 
 1. Вставьте **API-ключ Foundation Models** от Cloud.ru. Ключ остаётся в памяти локального Node-процесса и не записывается в браузерное хранилище или SQLite. После перезапуска потребуется вставить его снова.
 2. Каталог моделей загружается автоматически через `GET https://foundation-models.api.cloud.ru/v1/models`; выберите модель.

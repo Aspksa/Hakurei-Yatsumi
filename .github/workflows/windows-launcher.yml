@@ -23,7 +23,7 @@ jobs:
       - name: Check PowerShell 5.1 syntax
         shell: powershell
         run: |
-          $files = @('scripts/setup-and-start.ps1','scripts/stop.ps1','scripts/watchdog.ps1')
+          $files = @('scripts/setup-and-start.ps1','scripts/stop.ps1','scripts/watchdog.ps1','scripts/tray.ps1')
           foreach ($file in $files) {
             $tokens = $null; $errors = $null
             [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file), [ref]$tokens, [ref]$errors) | Out-Null
@@ -52,7 +52,7 @@ jobs:
             $base='P:\'
           }
           $base | Set-Content -LiteralPath "$env:RUNNER_TEMP\project-path.txt"
-      - name: Start, health check, repeat start, stop
+      - name: Start, check tray, recover and stop
         shell: powershell
         run: |
           $root = Get-Content -LiteralPath "$env:RUNNER_TEMP\project-path.txt" -Raw
@@ -61,11 +61,18 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'BAT launch failed' }
           $state = Join-Path $root 'logs\services.json'
           $original = Get-Content -LiteralPath $state -Raw | ConvertFrom-Json
-          & (Join-Path $root 'scripts\setup-and-start.ps1') -ProjectRoot $root -NoBrowser -Offline
+          $trayState = Join-Path $root 'logs\tray.json'
+          $tray = Get-Content -LiteralPath $trayState -Raw | ConvertFrom-Json
+          $trayProcess = Get-Process -Id $tray.pid
+          & (Join-Path $root 'Hakurei-Yatsumi.bat') -NoBrowser -Offline
           if ($LASTEXITCODE -ne 0) { throw 'Repeated offline launch failed' }
           $repeated = Get-Content -LiteralPath $state -Raw | ConvertFrom-Json
           if ($repeated.node.pid -ne $original.node.pid -or $repeated.python.pid -ne $original.python.pid) {
             throw 'Repeated launch replaced healthy services'
+          }
+          $repeatedTray = Get-Content -LiteralPath $trayState -Raw | ConvertFrom-Json
+          if ($repeatedTray.pid -ne $tray.pid -or $trayProcess.HasExited) {
+            throw 'Repeated launch replaced the tray process'
           }
           if ('${{ matrix.folder }}' -eq 'ordinary') {
             Stop-Process -Id $original.node.pid -Force
@@ -82,9 +89,13 @@ jobs:
               } catch {}
             }
             if (-not $recovered) { throw 'Watchdog did not restart the gateway' }
+            if ($trayProcess.HasExited) { throw 'Tray stopped during watchdog recovery' }
           }
           & (Join-Path $root 'scripts\stop.ps1') -ProjectRoot $root
           if ($LASTEXITCODE -ne 0) { throw 'Stop failed' }
+          if ((Test-Path -LiteralPath $trayState) -or -not $trayProcess.WaitForExit(10000)) {
+            throw 'Tray did not exit after services stopped'
+          }
           if ('${{ matrix.folder }}' -eq 'mapped') { cmd /c 'subst P: /D' }
       - name: Upload diagnostics on failure
         if: failure()

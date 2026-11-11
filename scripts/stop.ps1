@@ -3,6 +3,7 @@ $ErrorActionPreference='Stop'
 $root=[IO.Path]::GetFullPath($ProjectRoot)
 $state=Join-Path $root 'logs\services.json'
 $watchState=Join-Path $root 'logs\watchdog.json'
+$trayState=Join-Path $root 'logs\tray.json'
 
 function Owned([object]$entry) {
  if(-not $entry -or -not $entry.pid -or -not $entry.path){return $false}
@@ -26,7 +27,11 @@ try{
   }catch{Write-Host 'Watchdog state could not be read.'}
   finally{Remove-Item -LiteralPath $watchState -Force -ErrorAction SilentlyContinue}
  }
- if(-not (Test-Path -LiteralPath $state)){Write-Host 'No managed services recorded';exit 0}
+ if(-not (Test-Path -LiteralPath $state)){
+  if(Test-Path -LiteralPath $trayState){Remove-Item -LiteralPath $trayState -Force}
+  Write-Host 'No managed services recorded'
+  exit 0
+ }
  $saved=Get-Content -LiteralPath $state -Raw -Encoding UTF8|ConvertFrom-Json
  foreach($entry in @($saved.node,$saved.python)){
   if(Owned $entry){
@@ -35,6 +40,7 @@ try{
   }
  }
  Remove-Item -LiteralPath $state -Force
+ if(Test-Path -LiteralPath $trayState){Remove-Item -LiteralPath $trayState -Force}
  Write-Host 'Managed services stopped'
  exit 0
 }finally{
