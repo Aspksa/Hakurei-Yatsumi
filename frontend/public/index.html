@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hakurei Yatsumi — Cloud AI</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="shell">
+  <aside class="rail">
+    <div class="mark">八</div>
+    <div class="rail-bottom"><span class="fox">狐</span></div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar">
+      <div class="brand"><div class="brand-title">HAKUREI <span>YATSUMI</span></div><div class="brand-sub">CLOUD INTELLIGENCE · 八尾の狐</div></div>
+      <div class="top-actions">
+        <div class="connection" aria-live="polite"><span id="headerDot" class="dot red"></span><span id="headerStatus">Не подключено</span></div>
+        <button id="settingsOpen" class="icon-button" aria-label="Настройки программы" title="Настройки программы">
+          <svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2h4l.7 2.4 2 .8 2.2-1.2 2.8 2.8-1.2 2.2.8 2L23 11v4l-2.5.7-.8 2 1.2 2.2-2.8 2.8-2.2-1.2-2 .8L14 25h-4l-.7-2.5-2-.8-2.2 1.2-2.8-2.8 1.2-2.2-.8-2L.5 15v-4L3 10.3l.8-2-1.2-2.2 2.8-2.8 2.2 1.2 2-.8L10 2Z" transform="translate(.25 -1.5) scale(.96)"/><circle cx="12" cy="12" r="3.3"/></svg>
+        </button>
+      </div>
+    </header>
+    <main class="main">
+      <section id="welcome" class="welcome">
+        <div class="halo"><div class="kanji">八</div><div class="halo-ring"></div></div>
+        <p class="eyebrow">YOUR INTELLIGENT COMPANION</p>
+        <h1>Привет, я <em>Яцуми.</em></h1>
+        <p class="intro">Твой проводник в мире идей, знаний и возможностей.<br>Подключи модель Cloud.ru, и мы начнём разговор.</p>
+        <button class="primary" id="setupStart">Настроить подключение <span>↗</span></button>
+        <div class="hint">Модели работают в облаке · локальная установка LLM не нужна</div>
+      </section>
+      <section id="conversation" class="conversation" aria-live="polite" hidden></section>
+    </main>
+    <footer class="composer-wrap"><form id="chatForm" class="composer"><textarea id="message" rows="1" placeholder="Спроси меня о чём-нибудь…" aria-label="Сообщение" maxlength="8000"></textarea><button id="send" type="submit" aria-label="Отправить" disabled>↑</button></form><div class="footer-note">HAKUREI-YATSUMI <span>•</span> POWERED BY CLOUD.RU FOUNDATION MODELS</div></footer>
+  </div>
+</div>
+<div id="overlay" class="overlay" hidden>
+  <div class="scrim" id="settingsCloseBackdrop"></div>
+  <section class="panel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <div class="panel-head"><div><div class="eyebrow">CONFIGURATION</div><h2 id="settingsTitle">Настройки <em>Яцуми</em></h2></div><button id="settingsClose" class="close" aria-label="Закрыть">×</button></div>
+    <div class="panel-body">
+      <div class="step"><div class="step-index">01</div><div class="step-content"><h3>API-ключ Cloud.ru</h3><p>Вставь ключ Foundation Models. Он передаётся только локальному Node-серверу и хранится в памяти процесса.</p><div class="key-input"><input id="apiKey" type="password" placeholder="Вставьте API-ключ" autocomplete="off" spellcheck="false"><button id="toggleKey" type="button" aria-label="Показать ключ">◉</button></div><button class="secondary" id="saveKey">Сохранить ключ</button></div></div>
+      <div class="step"><div class="step-index">02</div><div class="step-content"><h3>Выбор модели</h3><p>После сохранения ключа список моделей автоматически загрузится из Cloud.ru.</p><div class="select-wrap"><select id="modelSelect" disabled><option value="">Сначала добавьте API-ключ</option></select><button id="reloadModels" type="button" title="Обновить модели" aria-label="Обновить модели">↻</button></div><div id="modelCount" class="small-note">Модели ещё не загружены</div></div></div>
+      <div class="step"><div class="step-index">03</div><div class="step-content"><h3>Подключение</h3><p>Выбери модель и активируй соединение.</p><div class="connect-row"><button class="primary" id="connectModel" disabled>Подключить модель <span>↗</span></button><div class="connection"><span id="panelDot" class="dot red"></span><span id="panelStatus">Не подключено</span></div></div></div></div>
+      <div id="notice" class="notice" role="status"></div>
+    </div>
+    <div class="panel-foot"><span>Cloud.ru · OpenAI-compatible API</span><button id="forgetKey" class="link-button">Сбросить ключ</button></div>
+  </section>
+</div>
+<script type="module" src="/app.js"></script>
+</body></html>
