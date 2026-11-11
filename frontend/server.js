@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCloudService } from './cloud.js';
 import { createYatsumiCore } from './core.js';
+import { avatarRouter } from './avatar-store.js';
 import { createServer } from 'node:http';
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, renameSync, statSync } from 'node:fs';
@@ -117,6 +118,7 @@ export function createGateway({ config = readConfig(), fetchImpl = fetch, logger
     res.once('finish', () => logger('info', 'request', { requestId, method: req.method, status: res.statusCode, durationMs: Date.now() - now }));
     next();
   });
+  app.use('/core', avatarRouter({ directory: join(fileURLToPath(new URL('.', import.meta.url)), 'data') }));
   app.use(express.json({ limit: '128kb', strict: true }));
   app.get('/gateway/health', async (req, res) => {
     const controller = new AbortController();
