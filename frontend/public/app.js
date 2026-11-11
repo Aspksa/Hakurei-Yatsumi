@@ -236,9 +236,11 @@ $('message').addEventListener('keydown', event => { if (event.key === 'Enter' &&
     $('conversation').hidden = false;
     $('message').focus();
   });
-  window.addEventListener('resize', () => {
-    if (avatar.style.left) moveTo(parseFloat(avatar.style.left), parseFloat(avatar.style.top));
-  });
+  function refitAvatar() {
+    if (avatar.style.left && avatar.style.top) moveTo(parseFloat(avatar.style.left), parseFloat(avatar.style.top));
+  }
+  window.addEventListener('resize', refitAvatar);
+  window.visualViewport?.addEventListener('resize', refitAvatar);
 })();
 
 
