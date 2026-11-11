@@ -2,6 +2,7 @@ const $ = id => document.getElementById(id);
 const overlay = $('overlay');
 const history = [];
 let connected = false;
+let pendingRetry = null;
 function openSettings() { overlay.hidden = false; $('apiKey').focus(); }
 function closeSettings() { overlay.hidden = true; $('settingsOpen').focus(); }
 function notice(text) { $('notice').textContent = text; }
@@ -110,12 +111,14 @@ $('chatForm').addEventListener('submit', async event => {
   $('welcome').hidden = true;
   $('conversation').hidden = false;
   $('message').value = '';
-  bubble('user', content);
+  const requestId = pendingRetry?.content === content ? pendingRetry.requestId : crypto.randomUUID();
+  pendingRetry = { content, requestId };
+  const userBubble = bubble('user', content);
   history.push({ role: 'user', content });
   const loading = bubble('assistant', 'Яцуми думает…');
   $('send').disabled = true;
   try {
-    const response = await fetch('/cloud/chat/stream', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ messages: history.slice(-30) }) });
+    const response = await fetch('/cloud/chat/stream', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ messages: history.slice(-30), requestId }) });
     if (!response.ok || !response.body) throw new Error('Поток Cloud.ru недоступен: HTTP ' + response.status);
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -138,10 +141,13 @@ $('chatForm').addEventListener('submit', async event => {
     }
     if (!complete) throw new Error('Соединение оборвалось до завершения ответа');
     history.push({ role: 'assistant', content: answer });
+    pendingRetry = null;
     try { setStatus(await api('/cloud/status')); } catch {}
   } catch (error) {
     loading.textContent = 'Ошибка: ' + error.message;
     history.pop();
+    userBubble.remove();
+    $('message').value = content;
     try { setStatus(await api('/cloud/status')); } catch {}
   } finally { $('send').disabled = !connected; }
 });
