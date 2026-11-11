@@ -6,12 +6,14 @@
 <title>Хакурэй Яцуми</title>
 <link rel="preload" href="/fonts/cormorant-garamond-cyrillic-600-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/style.css">
+<script src="/theme-boot.js"></script>
 </head>
 <body>
 <div class="app">
   <main class="chat" id="chatPanel" aria-label="Чат с Яцуми">
     <div class="chat-head">
-      <div class="connection" aria-live="polite"><span id="headerDot" class="dot red"></span><span id="headerStatus">Не подключено</span></div>
+      <div class="chat-title"><h1>Яцуми</h1>
+        <button type="button" id="statusButton" class="connection" aria-live="polite" title="Открыть настройки подключения"><span id="headerDot" class="dot red"></span><span id="headerStatus">Не подключено</span></button></div>
       <div class="chat-head-actions">
         <button id="settingsOpen" class="icon-button" aria-label="Настройки" title="Настройки">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2h4l.7 2.4 2 .8 2.2-1.2 2.8 2.8-1.2 2.2.8 2L23 11v4l-2.5.7-.8 2 1.2 2.2-2.8 2.8-2.2-1.2-2 .8L14 25h-4l-.7-2.5-2-.8-2.2 1.2-2.8-2.8 1.2-2.2-.8-2L.5 15v-4L3 10.3l.8-2-1.2-2.2 2.8-2.8 2.2 1.2 2-.8L10 2Z" transform="translate(.25 -1.5) scale(.96)"/><circle cx="12" cy="12" r="3.3"/></svg>
@@ -21,7 +23,13 @@
         </button>
       </div>
     </div>
-    <section id="conversation" class="conversation" aria-label="Чат Яцуми" role="log" tabindex="0"></section>
+    <section id="conversation" class="conversation" aria-label="Чат Яцуми" role="log" tabindex="0">
+      <div class="empty" id="emptyState">
+        <h2 id="emptyTitle">Яцуми ждёт подключения</h2>
+        <p id="emptyText">Добавьте API-ключ Cloud.ru и выберите модель — это займёт минуту.</p>
+        <button type="button" class="primary" id="emptyAction">Настроить подключение</button>
+      </div>
+    </section>
     <form id="chatForm" class="composer">
       <textarea id="message" rows="1" placeholder="Напиши сообщение Яцуми…" aria-label="Сообщение" maxlength="8000"></textarea>
       <button id="send" type="submit" aria-label="Отправить" disabled>
@@ -44,9 +52,14 @@
       </button>
     </div>
     <div id="notice" class="notice" role="status"></div>
+    <div class="tabs" role="tablist" aria-label="Разделы настроек">
+      <button class="tab" role="tab" id="tab-connection" data-tab="connection" aria-selected="true">Подключение</button>
+      <button class="tab" role="tab" id="tab-avatar" data-tab="avatar" aria-selected="false">Аватар</button>
+      <button class="tab" role="tab" id="tab-look" data-tab="look" aria-selected="false">Оформление</button>
+    </div>
     <div class="panel-body">
 
-      <section class="group">
+      <section class="group" data-tab="connection">
         <div class="group-head">
           <h3>Подключение к Cloud.ru</h3>
           <div class="connection"><span id="panelDot" class="dot red"></span><span id="panelStatus">Не подключено</span></div>
@@ -63,7 +76,7 @@
           <li class="step">
             <h4>Выберите модель</h4>
             <p>Список загрузится сам, как только ключ будет принят.</p>
-            <div class="field"><select id="modelSelect" aria-label="Модель Cloud.ru" disabled><option value="">Сначала добавьте API-ключ</option></select><button id="reloadModels" type="button" disabled title="Обновить список" aria-label="Обновить список моделей">
+            <div class="field"><select id="modelSelect" aria-label="Модель Cloud.ru" disabled><option value="">Нужен API-ключ</option></select><button id="reloadModels" type="button" disabled title="Обновить список" aria-label="Обновить список моделей">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.4-5.7M20 4v4h-4"/></svg>
             </button></div>
             <div id="modelCount" class="small-note">Модели ещё не загружены</div>
@@ -76,15 +89,7 @@
         </ol>
       </section>
 
-      <section class="group">
-        <div class="group-head"><h3>Память</h3></div>
-        <p>Факты, которые Яцуми будет помнить между запусками. Хранятся на этом компьютере.</p>
-        <div class="field"><input id="memoryKey" type="text" maxlength="128" placeholder="Название, например «Имя»" aria-label="Название факта"></div>
-        <div class="field"><input id="memoryValue" type="text" maxlength="1000" placeholder="Что запомнить" aria-label="Что запомнить"></div>
-        <button class="secondary" id="saveMemory" type="button">Запомнить</button>
-      </section>
-
-      <section class="group">
+      <section class="group" data-tab="avatar" hidden>
         <div class="group-head"><h3>Аватар</h3></div>
         <div class="avatar-row">
           <div class="avatar-settings-preview"><img id="avatarPreview" alt="Текущий аватар Яцуми" hidden><span id="avatarPreviewEmpty">Нет аватара</span></div>
@@ -95,6 +100,21 @@
             <div id="avatarMessage" class="small-note" role="status"></div>
           </div>
         </div>
+        <label class="toggle"><span>Показывать аватар на странице</span><input type="checkbox" id="avShow"></label>
+        <div class="setting"><label for="avSize">Размер</label><div class="range-row"><input type="range" id="avSize" min="70" max="360" step="10"><output id="avSizeOut"></output></div></div>
+        <div class="setting"><span class="label">Форма</span><div class="segmented" id="avShape" role="group" aria-label="Форма аватара"><button type="button" data-v="free">Как есть</button><button type="button" data-v="square">Квадрат</button><button type="button" data-v="rounded">Скруглённый</button><button type="button" data-v="circle">Круг</button></div></div>
+        <label class="toggle"><span>Свечение</span><input type="checkbox" id="avGlow"></label>
+        <div class="row-actions"><button class="secondary" id="avResetPos" type="button">Вернуть на место</button><button class="link-button" id="avResetAll" type="button">Сбросить настройки аватара</button></div>
+      </section>
+
+      <section class="group" data-tab="look" hidden>
+        <div class="group-head"><h3>Оформление</h3></div>
+        <div class="setting"><span class="label">Цвет акцента</span><div class="swatches" id="accentSwatches" role="group" aria-label="Цвет акцента"></div></div>
+        <div class="setting"><span class="label">Фон</span><div class="segmented" id="bgMode" role="group" aria-label="Фон"><button type="button" data-v="black">Чёрный</button><button type="button" data-v="graphite">Графит</button><button type="button" data-v="midnight">Ночной</button></div></div>
+        <div class="setting"><span class="label">Форма кнопок и окон</span><div class="segmented" id="shapeMode" role="group" aria-label="Форма кнопок"><button type="button" data-v="straight">Прямые</button><button type="button" data-v="soft">Мягкие</button><button type="button" data-v="round">Круглые</button></div></div>
+        <div class="setting"><span class="label">Заливка кнопок</span><div class="segmented" id="fillMode" role="group" aria-label="Заливка кнопок"><button type="button" data-v="metal">Металл</button><button type="button" data-v="flat">Плоская</button></div></div>
+        <div class="setting"><label for="fontScale">Размер текста</label><div class="range-row"><input type="range" id="fontScale" min="85" max="130" step="5"><output id="fontScaleOut"></output></div></div>
+        <div class="row-actions"><button class="link-button" id="lookReset" type="button">Вернуть оформление по умолчанию</button></div>
       </section>
 
     </div>
@@ -103,4 +123,5 @@
 </dialog>
 <script type="module" src="/app.js"></script>
 <script type="module" src="/avatar-settings.js"></script>
+<script type="module" src="/appearance.js"></script>
 </body></html>

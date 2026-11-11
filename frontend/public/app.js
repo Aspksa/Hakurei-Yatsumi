@@ -26,6 +26,9 @@ function setStatus(state) {
   $('panelStatus').textContent = label;
   const usage = state.usage ?? {};
   $('tokenUsage').textContent = 'Токены: ' + (usage.total_tokens || 0) + ' · вход ' + (usage.prompt_tokens || 0) + ' · выход ' + (usage.completion_tokens || 0);
+  $('emptyTitle').textContent = state.connected ? 'Привет! Я Яцуми' : 'Яцуми ждёт подключения';
+  $('emptyText').textContent = state.connected ? 'Напишите первое сообщение — я отвечу и запомню важное.' : 'Добавьте API-ключ Cloud.ru и выберите модель — это займёт минуту.';
+  $('emptyAction').hidden = state.connected;
   message.placeholder = state.connected ? 'Напиши сообщение Яцуми…' : 'Сначала подключите модель…';
   updateControls();
 }
@@ -80,6 +83,11 @@ async function configure(work) {
   finally { configuring = false; updateControls(); }
 }
 $('settingsOpen').addEventListener('click', openSettings);
+$('emptyAction').addEventListener('click', openSettings);
+$('statusButton').addEventListener('click', openSettings);
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && !overlay.open && chatPanel.classList.contains('is-open')) { setChatOpen(false); $('yatsumiAvatar').focus(); }
+});
 $('settingsClose').addEventListener('click', closeSettings);
 $('chatClose').addEventListener('click', () => { setChatOpen(false); $('yatsumiAvatar').focus(); });
 $('settingsCloseBackdrop').addEventListener('click', closeSettings);
@@ -110,23 +118,11 @@ $('connectModel').addEventListener('click', () => configure(async () => {
 }));
 $('forgetKey').addEventListener('click', () => configure(async () => {
   setStatus(await api('/cloud/key', { method: 'DELETE' }));
-  modelSelect.replaceChildren(new Option('Сначала добавьте API-ключ', ''));
+  modelSelect.replaceChildren(new Option('Нужен API-ключ', ''));
   $('modelCount').textContent = 'Модели ещё не загружены';
   try { localStorage.removeItem('yatsumi-cloud-model'); } catch {}
   notice('Ключ сброшен.');
 }));
-$('saveMemory').addEventListener('click', async () => {
-  const key = $('memoryKey').value.trim(), value = $('memoryValue').value.trim();
-  if (!key || !value) return notice('Укажите название и содержание воспоминания.');
-  $('saveMemory').disabled = true;
-  try {
-    await api('/core/memory', { method: 'POST', body: JSON.stringify({ key, value }) });
-    $('memoryKey').value = ''; $('memoryValue').value = '';
-    notice('Воспоминание сохранено в SQLite.');
-  } catch (error) { notice(error.message); }
-  finally { $('saveMemory').disabled = false; }
-});
-
 function bubble(role, content) {
   const element = document.createElement('div');
   element.className = 'bubble ' + role;
@@ -164,6 +160,7 @@ async function streamReply(content, requestId, loading) {
         if (event.type === 'delta') {
           const follow = nearLatest();
           answer += event.content;
+          loading.classList.remove('typing');
           loading.textContent = answer;
           if (follow) scrollToLatest();
         }
@@ -184,7 +181,10 @@ $('chatForm').addEventListener('submit', async event => {
   chatNotice('');
   message.value = '';
   const userBubble = bubble('user', content);
-  const loading = bubble('assistant', 'Яцуми думает…');
+  const loading = bubble('assistant', '');
+  loading.classList.add('typing');
+  loading.setAttribute('aria-label', 'Яцуми думает');
+  loading.append(...[0, 1, 2].map(() => document.createElement('i')));
   scrollToLatest();
 
   try {
@@ -281,6 +281,11 @@ function finishDrag(event) {
 avatar.addEventListener('pointerup', finishDrag);
 avatar.addEventListener('pointercancel', finishDrag);
 avatar.addEventListener('lostpointercapture', finishDrag);
+window.addEventListener('yatsumi:avatar-reset-position', () => {
+  position = undefined;
+  try { localStorage.removeItem(positionKey); } catch {}
+  for (const side of ['left', 'top', 'right', 'bottom']) avatar.style[side] = '';
+});
 avatar.addEventListener('click', event => {
   if (suppressClick && event.detail) { suppressClick = false; return; }
   setChatOpen(!chatPanel.classList.contains('is-open'));
