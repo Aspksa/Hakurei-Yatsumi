@@ -115,3 +115,14 @@ def create_event(user_id: int | None, event_type: str, details: str = "{}"):
         except sqlite3.IntegrityError:
             raise HTTPException(404, "User not found")
         return {"id": cursor.lastrowid}
+
+
+@app.get("/core/session/{user_id}")
+def core_session(user_id: int):
+    """Return the latest conversation for the local owner; no duplicate session per restart."""
+    with connection() as db:
+        row = db.execute(
+            "SELECT id FROM conversations WHERE user_id=? ORDER BY id DESC LIMIT 1",
+            (user_id,),
+        ).fetchone()
+        return {"conversation_id": row["id"] if row else None}
