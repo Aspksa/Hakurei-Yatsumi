@@ -43,7 +43,7 @@
       <div class="step"><div class="step-index">01</div><div class="step-content"><h3>API-ключ Cloud.ru</h3><p>Вставь ключ Foundation Models. Он передаётся только локальному Node-серверу и хранится в памяти процесса.</p><div class="key-input"><input id="apiKey" type="password" placeholder="Вставьте API-ключ" autocomplete="off" spellcheck="false"><button id="toggleKey" type="button" aria-label="Показать ключ">◉</button></div><button class="secondary" id="saveKey">Сохранить ключ</button></div></div>
       <div class="step"><div class="step-index">02</div><div class="step-content"><h3>Выбор модели</h3><p>После сохранения ключа список моделей автоматически загрузится из Cloud.ru.</p><div class="select-wrap"><select id="modelSelect" disabled><option value="">Сначала добавьте API-ключ</option></select><button id="reloadModels" type="button" title="Обновить модели" aria-label="Обновить модели">↻</button></div><div id="modelCount" class="small-note">Модели ещё не загружены</div></div></div>
       <div class="step"><div class="step-index">03</div><div class="step-content"><h3>Подключение</h3><p>Выбери модель и активируй соединение.</p><div class="connect-row"><button class="primary" id="connectModel" disabled>Подключить модель <span>↗</span></button><div class="connection"><span id="panelDot" class="dot red"></span><span id="panelStatus">Не подключено</span></div></div></div></div>
-      <div id="notice" class="notice" role="status"></div>
+      <div id="notice" class="notice" role="status"></div><div id="tokenUsage" class="small-note">Токены: 0</div>
     </div>
     <div class="panel-foot"><span>Cloud.ru · OpenAI-compatible API</span><button id="forgetKey" class="link-button">Сбросить ключ</button></div>
   </section>
