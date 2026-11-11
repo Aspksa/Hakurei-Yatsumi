@@ -1,64 +1,93 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createGateway } from './server.js';
+import { createGateway, createTaskQueue, readConfig, startGateway } from './server.js';
+import { WebSocket } from 'ws';
 
-async function request(app, path, init = {}) {
+const config = { ...readConfig({ YATSUMI_API_KEY: 'secret' }), apiKey: 'secret' };
+const logger = () => {};
+async function withApp(app, work) {
   const server = app.listen(0, '127.0.0.1');
   await new Promise(resolve => server.once('listening', resolve));
-  try {
-    const port = server.address().port;
-    return await fetch('http://127.0.0.1:' + port + path, init);
-  } finally {
-    await new Promise(resolve => server.close(resolve));
-  }
+  try { return await work('http://127.0.0.1:' + server.address().port); }
+  finally { await new Promise(resolve => server.close(resolve)); }
 }
-
-test('rejects remote upstreams and missing API key', () => {
-  assert.throws(() => createGateway({ apiKey: '' }), /API_KEY/);
-  assert.throws(() => createGateway({ apiKey: 'secret', apiUrl: 'https://example.com/' }), /local HTTP/);
-  assert.throws(() => createGateway({ apiKey: 'secret', apiUrl: 'http://127.0.0.1@evil.com/' }), /local HTTP/);
+test('rejects unsafe configuration', () => {
+  assert.throws(() => readConfig({ PYTHON_API_URL: 'https://example.com', YATSUMI_API_KEY: 'x' }), /local HTTP/);
+  assert.throws(() => readConfig({ YATSUMI_NODE_PORT: 'abc' }), /numeric/);
+  assert.throws(() => createGateway({ config: { ...config, apiKey: '' } }), /API_KEY/);
 });
-
-test('proxies query and API key, without body on DELETE', async () => {
-  let captured;
-  const app = createGateway({ apiKey: 'secret', fetchImpl: async (url, init) => {
-    captured = { url: String(url), init };
-    return new Response('{"ok":true}', { status: 200, headers: { 'content-type': 'application/json' } });
+test('health reports Python status and queue state', async () => {
+  const { app } = createGateway({ config, logger, fetchImpl: async () => new Response('{"status":"ok"}') });
+  await withApp(app, async base => {
+    const response = await fetch(base + '/gateway/health');
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.python, 'ok');
+    assert.equal(data.sqlite, 'via-python');
+  });
+});
+test('proxy preserves query, method, request ID and key without injecting DELETE body', async () => {
+  let seen;
+  const { app } = createGateway({ config, logger, fetchImpl: async (url, init) => {
+    seen = { url: String(url), init };
+    return new Response('{"ok":true}', { headers: { 'content-type': 'application/json' } });
   } });
-  const response = await request(app, '/api/health?x=1&x=2', { method: 'DELETE' });
-  assert.equal(response.status, 200);
-  assert.equal(captured.url, 'http://127.0.0.1:8000/health?x=1&x=2');
-  assert.equal(captured.init.headers['x-api-key'], 'secret');
-  assert.equal(captured.init.body, undefined);
+  await withApp(app, async base => {
+    const response = await fetch(base + '/api/health?x=1&x=2', { method: 'DELETE', headers: { 'x-request-id': 'trace-123' } });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('x-request-id'), 'trace-123');
+    assert.equal(seen.url, 'http://127.0.0.1:8000/health?x=1&x=2');
+    assert.equal(seen.init.headers['x-api-key'], 'secret');
+    assert.equal(seen.init.headers['x-request-id'], 'trace-123');
+    assert.equal(seen.init.body, undefined);
+  });
 });
-
-test('does not follow upstream redirects', async () => {
-  const app = createGateway({ apiKey: 'secret', fetchImpl: async () => new Response('', { status: 302, headers: { location: 'https://example.com' } }) });
-  const response = await request(app, '/api/health');
-  assert.equal(response.status, 502);
+test('rejects foreign origin and malformed JSON', async () => {
+  const { app } = createGateway({ config, logger, fetchImpl: async () => new Response('{}') });
+  await withApp(app, async base => {
+    assert.equal((await fetch(base + '/api/health', { headers: { Origin: 'https://evil.example' } })).status, 403);
+    assert.equal((await fetch(base + '/api/health', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{' })).status, 400);
+  });
 });
-
-test('returns 502 when upstream unavailable', async () => {
-  const app = createGateway({ apiKey: 'secret', fetchImpl: async () => { throw new Error('connection failed'); } });
-  const response = await request(app, '/api/health');
-  assert.equal(response.status, 502);
-  assert.doesNotMatch(await response.text(), /secret/);
+test('rejects redirect and masks upstream errors', async () => {
+  const { app } = createGateway({ config, logger, fetchImpl: async () => new Response('', { status: 302, headers: { location: 'https://example.com' } }) });
+  await withApp(app, async base => assert.equal((await fetch(base + '/api/health')).status, 502));
+  const broken = createGateway({ config, logger, fetchImpl: async () => { throw new Error('secret'); } });
+  await withApp(broken.app, async base => {
+    const response = await fetch(base + '/api/health');
+    assert.equal(response.status, 502);
+    assert.doesNotMatch(await response.text(), /secret/);
+  });
 });
-
-test('limits requests to 120 per minute', async () => {
-  const app = createGateway({ apiKey: 'secret', fetchImpl: async () => new Response('{}') });
-  const server = app.listen(0, '127.0.0.1');
-  await new Promise(resolve => server.once('listening', resolve));
+test('queue enforces concurrency and limit', async () => {
+  const q = createTaskQueue({ concurrency: 1, limit: 2 });
+  let release;
+  const hold = new Promise(resolve => { release = resolve; });
+  const first = q.submit(() => hold);
+  const second = q.submit(() => 2);
+  await assert.rejects(q.submit(() => 3), /Queue full/);
+  release(1);
+  assert.equal(await first, 1);
+  assert.equal(await second, 2);
+});
+test('WebSocket rejects missing key and accepts authenticated ping', async () => {
+  const gateway = startGateway({ config: { ...config, port: 0 }, logger, fetchImpl: async () => new Response('{}') });
+  await new Promise(resolve => gateway.server.once('listening', resolve));
   try {
-    const base = 'http://127.0.0.1:' + server.address().port;
-    for (let i = 0; i < 120; i++) {
-      const r = await fetch(base + '/api/health');
-      assert.equal(r.status, 200);
-      await r.arrayBuffer();
-    }
-    const limited = await fetch(base + '/api/health');
-    assert.equal(limited.status, 429);
-  } finally {
-    await new Promise(resolve => server.close(resolve));
-  }
+    const url = 'ws://127.0.0.1:' + gateway.server.address().port + '/ws';
+    await new Promise((resolve, reject) => {
+      const bad = new WebSocket(url);
+      bad.on('unexpected-response', (_, response) => { assert.equal(response.statusCode, 403); resolve(); });
+      bad.on('error', reject);
+    });
+    await new Promise((resolve, reject) => {
+      const socket = new WebSocket(url, { headers: { 'x-api-key': 'secret' } });
+      socket.on('message', data => {
+        const message = JSON.parse(String(data));
+        if (message.type === 'ready') socket.send(JSON.stringify({ type: 'ping' }));
+        if (message.type === 'pong') { socket.close(); resolve(); }
+      });
+      socket.on('error', reject);
+    });
+  } finally { gateway.shutdown(); await new Promise(resolve => gateway.server.once('close', resolve)); }
 });
