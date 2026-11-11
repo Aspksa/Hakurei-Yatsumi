@@ -17,13 +17,13 @@ test('rejects unsafe configuration', () => {
   assert.throws(() => createGateway({ config: { ...config, apiKey: '' } }), /API_KEY/);
 });
 test('health reports Python status and queue state', async () => {
-  const { app } = createGateway({ config, logger, fetchImpl: async () => new Response('{"status":"ok"}') });
+  const { app } = createGateway({ config, logger, fetchImpl: async () => new Response('{"status":"ok","sqlite":"ok"}') });
   await withApp(app, async base => {
     const response = await fetch(base + '/gateway/health');
     assert.equal(response.status, 200);
     const data = await response.json();
     assert.equal(data.python, 'ok');
-    assert.equal(data.sqlite, 'via-python');
+    assert.equal(data.sqlite, 'ok');
   });
 });
 test('proxy preserves query, method, request ID and key without injecting DELETE body', async () => {
