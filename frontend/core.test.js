@@ -31,14 +31,31 @@ test('Core initializes existing SQLite conversation and stores messages', async 
     else if (path === '/core/session/7') result = { conversation_id: 42 };
     else if (path === '/users/7/memories') result = [{ memory_key: 'любимый чай', memory_value: 'улун' }];
     else if (path === '/character') result = { personality: 'добрая' };
-    else if (path === '/conversations/42/messages') result = { id: 1 };
+    else if (path === '/core/conversations/42/turns') result = { request_id: '12345678-1234-1234-1234-123456789abc', duplicate: false };
+    else if (path.startsWith('/core/conversations/42/turns/')) result = { request_id: '12345678-1234-1234-1234-123456789abc', user_content: 'привет', assistant_content: 'ответ' };
     else result = [];
     return new Response(JSON.stringify(result), { status: 200 });
   };
   const core = createYatsumiCore({ fetchImpl, apiUrl: 'http://127.0.0.1:8000', apiKey: 'local-key' });
   const prepared = await core.prepare([{ role: 'user', content: 'любимый чай' }]);
   assert.match(prepared.messages[0].content, /улун/);
-  await core.save('привет', 'ответ');
-  assert.equal(calls.filter(call => call.path === '/conversations/42/messages' && call.method === 'POST').length, 2);
+  await core.save('привет', 'ответ', '12345678-1234-1234-1234-123456789abc');
+  assert.equal(calls.filter(call => call.path === '/core/conversations/42/turns' && call.method === 'POST').length, 1);
+  assert.equal((await core.getTurn('12345678-1234-1234-1234-123456789abc')).assistant_content, 'ответ');
   assert.equal(calls.filter(call => call.path === '/users').length, 1);
+});
+
+test('Core initializes only once during concurrent operations', async () => {
+  let users = 0;
+  const fetchImpl = async (url) => {
+    const path = new URL(url).pathname;
+    if (path === '/users') { users++; await new Promise(resolve => setTimeout(resolve, 5)); return new Response('{"id":7}'); }
+    if (path === '/core/session/7') return new Response('{"conversation_id":42}');
+    if (path.endsWith('/memories')) return new Response('[]');
+    if (path === '/character') return new Response('{}');
+    return new Response('[]');
+  };
+  const core = createYatsumiCore({ fetchImpl, apiUrl: 'http://127.0.0.1:8000', apiKey: 'test' });
+  await Promise.all([core.history(), core.prepare([{ role: 'user', content: 'Привет' }])]);
+  assert.equal(users, 1);
 });
