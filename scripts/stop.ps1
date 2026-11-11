@@ -4,11 +4,14 @@ $root=[IO.Path]::GetFullPath($ProjectRoot)
 $state=Join-Path $root 'logs\services.json'
 $watchState=Join-Path $root 'logs\watchdog.json'
 
-function Owned($entry){
- if(-not $entry -or -not $entry.pid -or -not $entry.started -or -not $entry.path){return $false}
+function Owned([object]$entry) {
+ if(-not $entry -or -not $entry.pid -or -not $entry.path){return $false}
  try {
   $p=Get-Process -Id ([int]$entry.pid) -ErrorAction Stop
-  return ($p.Path -ieq [string]$entry.path -and [Math]::Abs(($p.StartTime.ToUniversalTime()-[datetime]::Parse([string]$entry.started).ToUniversalTime()).TotalSeconds) -lt 3)
+  $start=$p.StartTime.ToUniversalTime()
+  $matchesStart=if($entry.startTicks){$start.Ticks -eq [long]$entry.startTicks}
+   else{[Math]::Abs(($start-[datetimeoffset]::Parse([string]$entry.started).UtcDateTime).TotalSeconds) -lt 3}
+  return ($p.Path -ieq [string]$entry.path -and $matchesStart)
  }catch{return $false}
 }
 $logs=Join-Path $root 'logs'
@@ -33,6 +36,7 @@ try{
  }
  Remove-Item -LiteralPath $state -Force
  Write-Host 'Managed services stopped'
+ exit 0
 }finally{
  $lock.Dispose()
 }

@@ -103,23 +103,41 @@ function Health([string]$url) {
  }catch{return $false}
 }
 function Owned([object]$entry) {
- if(-not $entry -or -not $entry.pid -or -not $entry.started -or -not $entry.path){return $false}
+ if(-not $entry -or -not $entry.pid -or -not $entry.path){return $false}
  try {
   $p=Get-Process -Id ([int]$entry.pid) -ErrorAction Stop
-  return ($p.Path -ieq [string]$entry.path -and [Math]::Abs(($p.StartTime.ToUniversalTime()-[datetime]::Parse([string]$entry.started).ToUniversalTime()).TotalSeconds) -lt 3)
+  $start=$p.StartTime.ToUniversalTime()
+  $matchesStart=if($entry.startTicks){$start.Ticks -eq [long]$entry.startTicks}
+   else{[Math]::Abs(($start-[datetimeoffset]::Parse([string]$entry.started).UtcDateTime).TotalSeconds) -lt 3}
+  return ($p.Path -ieq [string]$entry.path -and $matchesStart)
  }catch{return $false}
 }
 function Stop-Owned([object]$entry) {
  if(Owned $entry){
   & taskkill.exe /PID ([int]$entry.pid) /T /F | Out-Null
-  if($LASTEXITCODE -ne 0 -and (Owned $entry)){Log "Could not stop PID $($entry.pid)"}
+  if($LASTEXITCODE -ne 0 -and (Owned $entry)){throw "Could not stop PID $($entry.pid)"}
  }
+}
+function Process-State([Diagnostics.Process]$process,[string]$name) {
+ for($i=0;$i -lt 20;$i++){
+  $current=Get-Process -Id $process.Id -ErrorAction Stop
+  if($current.Path){
+   $start=$current.StartTime.ToUniversalTime()
+   return @{pid=$current.Id;path=$current.Path;started=$start.ToString('o');startTicks=[string]$start.Ticks}
+  }
+  Start-Sleep -Milliseconds 50
+ }
+ throw "Could not identify the executable for $name (PID $($process.Id))"
 }
 function Launch([string]$exe,[string]$arguments,[string]$directory,[string]$name) {
  Rotate (Join-Path $logs "$name.stdout.log")
  Rotate (Join-Path $logs "$name.stderr.log")
  $p=Start-Process -FilePath $exe -ArgumentList $arguments -WorkingDirectory $directory -RedirectStandardOutput (Join-Path $logs "$name.stdout.log") -RedirectStandardError (Join-Path $logs "$name.stderr.log") -PassThru
- return @{pid=$p.Id;path=$p.Path;started=$p.StartTime.ToUniversalTime().ToString('o')}
+ try{return (Process-State $p $name)}
+ catch{
+  if(-not $p.HasExited){$p.Kill()}
+  throw
+ }
 }
 function Wait-Health([string]$url,[object]$entry) {
  for($i=0;$i -lt 40;$i++) {
@@ -148,7 +166,7 @@ function Ensure-Watchdog {
  $powershell=Join-Path $PSHOME 'powershell.exe'
  $rootArgument=Join-Path $root '.'
  $watch=Start-Process -FilePath $powershell -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+$watchScript+'"'),'-ProjectRoot',('"'+$rootArgument+'"')) -WorkingDirectory $root -WindowStyle Hidden -PassThru
- @{pid=$watch.Id;path=$watch.Path;started=$watch.StartTime.ToUniversalTime().ToString('o')}|ConvertTo-Json|Set-Content -LiteralPath $watchState -Encoding UTF8
+ (Process-State $watch 'watchdog')|ConvertTo-Json|Set-Content -LiteralPath $watchState -Encoding UTF8
 }
 function Report([string]$errorText) {
  $report=Join-Path $logs 'diagnostics.txt'
@@ -185,18 +203,23 @@ try {
  if(-not $env:YATSUMI_API_KEY){throw 'API key is empty'}
  $env:PYTHON_API_URL='http://127.0.0.1:8000'
  if(Test-Path -LiteralPath $state) {
-  try {
-   $saved=Get-Content -LiteralPath $state -Raw -Encoding UTF8 | ConvertFrom-Json
-   if((Owned $saved.python) -and (Owned $saved.node) -and (Health 'http://127.0.0.1:8000/health') -and (Health 'http://127.0.0.1:3000/gateway/health')){
+  $saved=$null
+  try{$saved=Get-Content -LiteralPath $state -Raw -Encoding UTF8|ConvertFrom-Json}
+  catch{Log "Unreadable service state: $($_.Exception.Message)"}
+  if($saved){
+   $ownsApi=Owned $saved.python
+   $ownsGateway=Owned $saved.node
+   if($ownsApi -and $ownsGateway -and (Health 'http://127.0.0.1:8000/health') -and (Health 'http://127.0.0.1:3000/gateway/health')){
     Log 'Already running; no duplicate services started'
     Ensure-Watchdog
     Open-Browser
     exit 0
    }
-   Stop-Owned $saved.node;Stop-Owned $saved.python
-   Log 'Stopped stale/partially started owned processes'
-  }catch{Log "Stale state: $($_.Exception.Message)"}
-  Remove-Item -LiteralPath $state -Force -ErrorAction SilentlyContinue
+   Log "Recovering service state (Python PID $($saved.python.pid), owned=$ownsApi; Node PID $($saved.node.pid), owned=$ownsGateway)"
+   Stop-Owned $saved.node
+   Stop-Owned $saved.python
+  }
+  Remove-Item -LiteralPath $state -Force
  }
  foreach($port in @(8000,3000)) {
   $client=New-Object Net.Sockets.TcpClient
@@ -252,8 +275,8 @@ try {
 }catch{
  $message=$_.Exception.Message
  try{Log "ERROR: $message";Report $message}catch{Write-Host "ERROR: $message" -ForegroundColor Red}
- if($gateway){Stop-Owned $gateway}
- if($api){Stop-Owned $api}
+ try{if($gateway){Stop-Owned $gateway}}catch{Log $_.Exception.Message}
+ try{if($api){Stop-Owned $api}}catch{Log $_.Exception.Message}
  if($api -or $gateway){Remove-Item -LiteralPath $state -Force -ErrorAction SilentlyContinue}
  exit 1
 }finally{

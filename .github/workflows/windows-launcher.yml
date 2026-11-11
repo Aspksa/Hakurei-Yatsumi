@@ -59,11 +59,15 @@ jobs:
           $root = $root.Trim()
           & (Join-Path $root 'Hakurei-Yatsumi.bat') -NoBrowser
           if ($LASTEXITCODE -ne 0) { throw 'BAT launch failed' }
+          $state = Join-Path $root 'logs\services.json'
+          $original = Get-Content -LiteralPath $state -Raw | ConvertFrom-Json
           & (Join-Path $root 'scripts\setup-and-start.ps1') -ProjectRoot $root -NoBrowser -Offline
           if ($LASTEXITCODE -ne 0) { throw 'Repeated offline launch failed' }
+          $repeated = Get-Content -LiteralPath $state -Raw | ConvertFrom-Json
+          if ($repeated.node.pid -ne $original.node.pid -or $repeated.python.pid -ne $original.python.pid) {
+            throw 'Repeated launch replaced healthy services'
+          }
           if ('${{ matrix.folder }}' -eq 'ordinary') {
-            $state = Join-Path $root 'logs\services.json'
-            $original = Get-Content -LiteralPath $state -Raw | ConvertFrom-Json
             Stop-Process -Id $original.node.pid -Force
             $recovered = $false
             for ($i = 0; $i -lt 60; $i++) {
