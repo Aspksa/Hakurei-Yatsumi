@@ -18,6 +18,7 @@ function showImage(url) {
   if (objectUrl) URL.revokeObjectURL(objectUrl);
   objectUrl = url;
   avatar.hidden = preview.hidden = !url;
+  document.documentElement.toggleAttribute('data-no-avatar', !url);
   placeholder.hidden = Boolean(url);
   for (const element of [image, preview]) {
     if (url) element.src = url;
@@ -87,5 +88,5 @@ $('avatarReset').addEventListener('click', async () => {
 });
 setBusy(true);
 loadAvatar()
-  .catch(error => { message.textContent = 'Не удалось загрузить аватар из проекта: ' + error.message; })
+  .catch(error => { document.documentElement.setAttribute('data-no-avatar', ''); message.textContent = 'Не удалось загрузить аватар из проекта: ' + error.message; })
   .finally(() => setBusy(false));

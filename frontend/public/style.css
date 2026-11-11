@@ -37,7 +37,7 @@
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-body{margin:0;min-height:100dvh;background:var(--black);overflow:hidden}
+body{margin:0;min-height:100dvh;background:var(--black)}
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
 button:disabled{opacity:.38;cursor:not-allowed}
@@ -55,8 +55,7 @@ p{margin:0}
 .icon-button:hover,.close:hover{border-color:var(--gold);color:var(--gold-pale);background:var(--ink-raised)}
 
 .chat{display:none;position:fixed;z-index:6;top:50%;left:50%;transform:translate(-50%,-50%);width:min(100vw - 32px,760px);height:min(100dvh - 48px,780px);flex-direction:column;padding:14px clamp(14px,2.4vw,24px) 18px;background:var(--black);border:1px solid var(--gold-deep);border-radius:var(--r-box);box-shadow:0 0 90px -22px color-mix(in srgb,var(--gold) 40%,transparent)}
-.chat.is-open,body:has(#yatsumiAvatar[hidden]) .chat{display:flex}
-body:has(#yatsumiAvatar[hidden]) #chatClose{display:none}
+.chat.is-open{display:flex}
 @media(prefers-reduced-motion:no-preference){
   .chat.is-open{animation:chat-in .2s cubic-bezier(.2,.8,.2,1)}
   @keyframes chat-in{from{opacity:0;transform:translate(-50%,calc(-50% + 10px)) scale(.985)}to{opacity:1;transform:translate(-50%,-50%)}}
@@ -180,7 +179,7 @@ button.connection:hover{color:var(--gold-light)}
 
 /* ---------- вкладки настроек ---------- */
 .tabs{flex:none;display:flex;gap:4px;margin:0 clamp(18px,4vw,30px) 4px;border-bottom:1px solid var(--line)}
-.tab{flex:1;padding:.7em .4em;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;background:none;color:var(--muted);font-weight:600;font-size:.92rem}
+.tab{flex:1;padding:.7em .2em;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;background:none;color:var(--muted);font-weight:600;font-size:.86rem}
 .tab:hover{color:var(--gold-light)}
 .tab[aria-selected="true"]{color:var(--gold-light);border-bottom-color:var(--gold)}
 .panel-body>.group[hidden]{display:none}
@@ -209,10 +208,8 @@ button.connection:hover{color:var(--gold-light)}
 :root[data-fill="flat"] .primary{background:var(--gold);box-shadow:none}
 :root[data-fill="flat"] .composer button:not(:disabled){background:var(--gold)}
 :root[data-fill="flat"] .bubble.user{background:var(--gold)}
-/* аватар выключен: чат всегда открыт */
+/* аватар выключен или недоступен: чат открывается кнопкой */
 html[data-av="off"] .yatsumi-avatar{display:none}
-html[data-av="off"] .chat{display:flex}
-html[data-av="off"] #chatClose{display:none}
 
 /* ---------- действия под сообщениями ---------- */
 .msg-actions{display:flex;gap:2px 14px;flex-wrap:wrap;padding:0 6px;opacity:.55;transition:opacity .15s}
@@ -239,4 +236,90 @@ html[data-av="off"] #chatClose{display:none}
   @keyframes av-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
   @keyframes av-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.035)}}
   @keyframes av-think{0%,100%{transform:scale(1);filter:brightness(1)}50%{transform:scale(1.045);filter:brightness(1.18)}}
+}
+
+/* ---------- кнопка чата, если аватара нет ---------- */
+.launcher{display:none;position:fixed;z-index:8;right:20px;bottom:20px;width:56px;height:56px;place-items:center;border:0;border-radius:var(--r-round);background:var(--metal);color:var(--on-gold);box-shadow:0 10px 34px -10px color-mix(in srgb,var(--gold) 70%,transparent)}
+html[data-no-avatar] .launcher,html[data-av="off"] .launcher{display:grid}
+.launcher[aria-expanded="true"]{opacity:.0;pointer-events:none}
+
+/* ---------- главная: часы, календарь, дела ---------- */
+.dash{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start;width:min(100% - 32px,1180px);margin:0 auto;padding:28px 0 clamp(150px,22vw,230px)}
+.card{min-width:0;padding:20px clamp(16px,2.4vw,26px);background:var(--ink);border:1px solid var(--line);border-radius:var(--r-box)}
+.clock-card{grid-column:1/-1;display:grid;justify-items:center;text-align:center;gap:4px;padding-block:26px;background:transparent;border-color:var(--line)}
+.clock-time{font-family:var(--display);font-weight:600;font-size:clamp(3.6rem,10vw,6.4rem);line-height:1;letter-spacing:.02em;font-variant-numeric:lining-nums tabular-nums;color:var(--gold-light)}
+.clock-time .sec{font-size:.5em;color:var(--muted);letter-spacing:0}
+html[data-hide-seconds] .clock-time .sec{display:none}
+.clock-date{font-size:1.15rem;color:var(--text)}
+.clock-sub{font-size:.9rem;color:var(--muted)}
+.clock-sub:empty{display:none}
+html[data-hide-clock] #clockCard,html[data-hide-calendar] #calendarCard,html[data-hide-tasks] #tasksCard{display:none}
+html[data-hide-calendar] .dash,html[data-hide-tasks] .dash{grid-template-columns:minmax(0,1fr)}
+html[data-hide-calendar][data-hide-tasks] .dash{padding-top:0}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.card h2{margin:0;font-family:var(--display);font-weight:600;font-size:1.5rem;line-height:1.2;color:var(--gold-light)}
+.segmented.small button{padding:.38em .9em;font-size:.82rem}
+.icon-button.small{width:34px;height:34px}
+.cal-nav{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.cal-month{flex:1;text-align:center;font-family:var(--display);font-weight:600;font-size:1.35rem;color:var(--text)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.cal-head{padding:6px 0;text-align:center;font-size:.76rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.cal-head.is-weekend{color:var(--gold)}
+.cal-day{position:relative;height:clamp(40px,4.4vw,50px);display:grid;place-items:center;padding:0;border:1px solid transparent;border-radius:var(--r-field);background:transparent;color:var(--text);font-size:.95rem;font-variant-numeric:tabular-nums}
+.cal-day:hover{border-color:var(--line-strong);background:var(--ink-raised)}
+.cal-day.is-other{opacity:.38}
+.cal-day.k-weekend{color:var(--gold)}
+.cal-day.k-holiday{background:color-mix(in srgb,var(--gold) 26%,transparent);border-color:var(--gold-deep);color:var(--gold-pale);font-weight:600}
+.cal-day.k-transfer{background:color-mix(in srgb,var(--gold) 14%,transparent);border:1px dashed var(--gold);color:var(--gold-light);font-weight:600}
+.cal-day.k-extra-work{border-color:var(--gold);color:var(--text)}
+.cal-day.is-short::after{content:"";position:absolute;left:28%;right:28%;bottom:5px;height:2px;border-radius:2px;background:var(--gold-light)}
+.cal-day.has-tasks::before{content:"";position:absolute;top:5px;right:6px;width:6px;height:6px;border-radius:50%;background:var(--gold-pale);box-shadow:0 0 0 1px var(--black)}
+.cal-day.is-today{box-shadow:inset 0 0 0 2px var(--gold-pale)}
+.cal-day.is-selected{outline:2px solid var(--gold);outline-offset:1px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;list-style:none;margin:14px 0 0;padding:0;font-size:.78rem;color:var(--muted)}
+.legend li{display:flex;align-items:center;gap:7px}
+.sw{display:inline-block;width:14px;height:14px;border-radius:min(4px,var(--r-field));border:1px solid var(--line-strong)}
+.sw.holiday{background:color-mix(in srgb,var(--gold) 40%,transparent);border-color:var(--gold-deep)}
+.sw.transfer{border:1px dashed var(--gold);background:color-mix(in srgb,var(--gold) 16%,transparent)}
+.sw.weekend{border:0;background:none;position:relative}
+.sw.weekend::after{content:"7";position:absolute;inset:0;display:grid;place-items:center;font-size:.8rem;font-weight:700;color:var(--gold)}
+.sw.short{border:0;background:none;position:relative}
+.sw.short::after{content:"";position:absolute;left:1px;right:1px;bottom:3px;height:2px;background:var(--gold-light)}
+.sw.extra{border-color:var(--gold)}
+.cal-stats{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);display:grid;gap:2px;font-size:.88rem;color:var(--text)}
+.cal-stats div:last-child:not(:first-child){color:var(--muted)}
+.cal-detail{margin-top:12px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-field);background:var(--black);font-size:.9rem;color:var(--text)}
+.cal-detail strong{color:var(--gold-light)}
+.cal-detail .link-button{padding:.2em 0;font-size:.85rem}
+.cal-notes{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:4px;font-size:.84rem;color:var(--muted)}
+.cal-notes li::before{content:"";display:inline-block;width:8px;height:8px;margin-right:9px;border-radius:50%;background:var(--gold-deep);vertical-align:middle}
+.cal-notes li.k-holiday::before{background:var(--gold)}
+.cal-notes li.k-extra-work::before{background:none;border:1px solid var(--gold)}
+.cal-notes li.k-work::before{background:var(--gold-light);height:2px;border-radius:2px;width:10px}
+.task-form{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;margin-bottom:12px}
+.task-form input{min-width:0;padding:.66em .85em;border:1px solid var(--line-strong);border-radius:var(--r-field);background:var(--black);color:var(--gold-pale);font-size:16px;color-scheme:dark}
+.task-form input:focus{outline:0;border-color:var(--gold);box-shadow:0 0 0 4px color-mix(in srgb,var(--gold) 12%,transparent)}
+.task-form .primary{padding:.6em 1.2em}
+.tasks-card .segmented{margin-bottom:6px}
+.day-filter{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:8px 0 2px;padding:6px 10px;border:1px solid var(--gold-deep);border-radius:var(--r-field);font-size:.86rem;color:var(--gold-light)}
+.day-filter .link-button{padding:.1em 0;font-size:.82rem}
+.task-list{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:2px;max-height:min(46dvh,420px);overflow-y:auto}
+.task{display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:1px solid var(--line)}
+.task label{flex:1;min-width:0;display:flex;align-items:flex-start;gap:10px;cursor:pointer}
+.task input[type=checkbox]{flex:none;width:18px;height:18px;margin-top:.2em;accent-color:var(--gold)}
+.task-text{overflow-wrap:anywhere;color:var(--text)}
+.task.is-done .task-text{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--line-strong)}
+.task-date{flex:none;padding:.15em .6em;border:1px solid var(--line-strong);border-radius:var(--r-btn);font-size:.76rem;color:var(--muted);white-space:nowrap}
+.task-date.is-today{border-color:var(--gold);color:var(--gold-light)}
+.task-date.is-late{border-color:var(--bad);color:#ffb3bd}
+.task-del{flex:none;width:28px;height:28px;border:0;border-radius:var(--r-round);background:none;color:var(--muted);font-size:1.2rem;line-height:1}
+.task-del:hover{background:var(--ink-raised);color:var(--gold-pale)}
+.task-empty{margin-top:14px;text-align:center;color:var(--muted);font-size:.9rem}
+.tasks-card .row-actions{margin-top:10px}
+@media(max-width:860px){.dash{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:600px){
+  .dash{padding-top:140px;padding-bottom:40px;width:min(100% - 20px,1180px)}
+  .task-form{grid-template-columns:minmax(0,1fr) auto}
+  .task-form #taskText{grid-column:1/-1}
+  .cal-day{height:44px}
 }

@@ -77,6 +77,12 @@ const font = $('fontScale');
 font.addEventListener('input', () => { theme.font = Number(font.value); $('fontScaleOut').textContent = font.value + '%'; saveTheme(); });
 $('lookReset').addEventListener('click', () => { theme = { ...T.themeDefaults }; saveTheme(); syncAll(); });
 
+// ---- главная ----
+let dash = T.readDash();
+const dashBoxes = { dashClock: 'clock', dashSeconds: 'seconds', dashCalendar: 'calendar', dashTasks: 'tasks' };
+for (const [id, key] of Object.entries(dashBoxes)) $(id).addEventListener('change', event => { dash[key] = event.target.checked; T.saveDash(dash); });
+$('dashReset').addEventListener('click', () => { dash = { ...T.dashDefaults }; T.saveDash(dash); syncAll(); });
+
 // ---- аватар ----
 const size = $('avSize');
 function currentSize() { return Number.isFinite(av.size) ? av.size : Math.round(document.getElementById('yatsumiAvatar').offsetWidth || 150); }
@@ -88,6 +94,7 @@ $('avResetPos').addEventListener('click', () => window.dispatchEvent(new Event('
 $('avResetAll').addEventListener('click', () => { av = { ...T.avatarDefaults }; saveAv(); window.dispatchEvent(new Event('yatsumi:avatar-reset-position')); syncAll(); });
 
 function syncAll() {
+  for (const [id, key] of Object.entries(dashBoxes)) $(id).checked = dash[key] !== false;
   syncers.forEach(sync => sync());
   font.value = theme.font; $('fontScaleOut').textContent = theme.font + '%';
   $('avShow').checked = av.show !== false; $('avGlow').checked = av.glow !== false; $('avSnap').checked = av.snap !== false;
