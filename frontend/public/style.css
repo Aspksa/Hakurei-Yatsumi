@@ -183,3 +183,8 @@ body:has(#welcome:not([hidden])) .yatsumi-avatar{visibility:hidden;pointer-event
 }
 @media(max-height:620px) and (max-width:860px){.welcome-figure{display:none}}
 @media(pointer:coarse){.icon-button,.close{min-width:44px;min-height:44px}}
+
+/* ---------- пустой чат ---------- */
+.conversation:empty{justify-content:center;align-items:center;text-align:center}
+.conversation:empty::before{content:"О чём поговорим?";font-family:var(--display);font-weight:600;font-size:clamp(2rem,5vw,3.4rem);line-height:1.05;background:var(--metal);-webkit-background-clip:text;background-clip:text;color:transparent;padding-bottom:.1em}
+.conversation:empty::after{content:"Напиши сообщение внизу — Яцуми ответит.";margin-top:4px;color:var(--muted);font-size:.95rem}
