@@ -12,6 +12,8 @@ function setStatus(state) {
   $('headerStatus').textContent = label;
   $('panelStatus').textContent = label;
   $('send').disabled = !connected;
+  const usage = state.usage;
+  if (usage && $('tokenUsage')) $('tokenUsage').textContent = 'Токены: ' + (usage.total_tokens || 0) + ' · вход ' + (usage.prompt_tokens || 0) + ' · выход ' + (usage.completion_tokens || 0);
   $('message').placeholder = connected ? 'Напиши сообщение Яцуми…' : 'Сначала подключите модель в настройках…';
 }
 async function api(path, options = {}) {
@@ -35,7 +37,7 @@ async function refreshModels() {
     select.replaceChildren(new Option('Не удалось загрузить модели', ''));
     $('modelCount').textContent = 'Ошибка загрузки';
     notice(error.message);
-    setStatus({ configured: true, connected: false });
+    try { setStatus(await api('/cloud/status')); } catch {}
   }
 }
 $('settingsOpen').addEventListener('click', openSettings);
@@ -66,7 +68,7 @@ $('connectModel').addEventListener('click', async () => {
     setStatus(state);
     notice('Модель подключена. Можно начать диалог.');
     closeSettings();
-  } catch (error) { notice(error.message); setStatus({ configured: true, connected: false }); }
+  } catch (error) { notice(error.message); try { setStatus(await api('/cloud/status')); } catch {} }
   finally { $('connectModel').disabled = !$('modelSelect').value; }
 });
 $('forgetKey').addEventListener('click', async () => {
@@ -103,12 +105,11 @@ $('chatForm').addEventListener('submit', async event => {
     const response = await api('/cloud/chat', { method: 'POST', body: JSON.stringify({ messages: history.slice(-30) }) });
     loading.textContent = response.content;
     history.push({ role: 'assistant', content: response.content });
+    try { setStatus(await api('/cloud/status')); } catch {}
   } catch (error) {
     loading.textContent = 'Ошибка: ' + error.message;
     history.pop();
-    if (/подключ|Cloud.ru|ключ/i.test(error.message)) {
-      setStatus({ configured: true, connected: false });
-    }
+    try { setStatus(await api('/cloud/status')); } catch {}
   } finally { $('send').disabled = !connected; }
 });
 $('message').addEventListener('keydown', event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); $('chatForm').requestSubmit(); } });
