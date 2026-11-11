@@ -115,9 +115,9 @@ export function createCloudService({ fetchImpl = fetch, timeoutMs = 60000, sleep
       return status();
     } catch (error) { throw fail(error, true); }
   }
-  function validateMessages(messages) {
+  function validateMessages(messages, allowSystem = false) {
     if (!Array.isArray(messages) || !messages.length || messages.length > 30 ||
-      messages.some(item => !item || !['user', 'assistant'].includes(item.role) || typeof item.content !== 'string' || !item.content.trim() || item.content.length > 8000)) {
+      messages.some(item => !item || !((allowSystem && item.role === 'system') || ['user', 'assistant'].includes(item.role)) || typeof item.content !== 'string' || !item.content.trim() || item.content.length > 8000)) {
       throw new CloudError('MESSAGES', 'Некорректная история диалога', 400);
     }
   }
@@ -138,9 +138,9 @@ export function createCloudService({ fetchImpl = fetch, timeoutMs = 60000, sleep
       throw fail(problem, [401, 403, 404].includes(problem.httpStatus) || problem.code === 'STALE');
     }
   }
-  async function streamChat(messages, emit, signal) {
+  async function streamChat(messages, emit, signal, allowSystem = false) {
     if (!connected || !selected) throw new CloudError('DISCONNECTED', 'Сначала подключите модель', 409);
-    validateMessages(messages);
+    validateMessages(messages, allowSystem);
     const epoch = generation, model = selected;
     const controller = new AbortController();
     const abort = () => controller.abort();
