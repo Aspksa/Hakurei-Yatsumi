@@ -77,7 +77,7 @@ test('WebSocket rejects missing key and accepts authenticated ping', async () =>
     const url = 'ws://127.0.0.1:' + gateway.server.address().port + '/ws';
     await new Promise((resolve, reject) => {
       const bad = new WebSocket(url);
-      bad.on('unexpected-response', (_, response) => { assert.equal(response.statusCode, 403); resolve(); });
+      bad.on('unexpected-response', (_, response) => { assert.equal(response.statusCode, 403); response.resume(); bad.terminate(); resolve(); });
       bad.on('error', reject);
     });
     await new Promise((resolve, reject) => {
@@ -90,4 +90,52 @@ test('WebSocket rejects missing key and accepts authenticated ping', async () =>
       socket.on('error', reject);
     });
   } finally { gateway.shutdown(); await new Promise(resolve => gateway.server.once('close', resolve)); }
+});
+
+test('Core stream integrates Cloud, backend persistence, and replay without second generation', async () => {
+  const stored = new Map();
+  let generated = 0, writes = 0;
+  const mockFetch = async (url, init = {}) => {
+    const target = String(url);
+    const path = new URL(target).pathname;
+    if (target.includes('foundation-models.api.cloud.ru')) {
+      if (path.endsWith('/models')) return Response.json({ data: [{ id: 'chat-model' }] });
+      const body = JSON.parse(init.body);
+      if (!body.stream) return Response.json({ choices: [{ message: { content: 'готово' } }] });
+      generated++;
+      return new Response('data: {"choices":[{"delta":{"content":"Ответ"}}]}\n\ndata: [DONE]\n\n', { headers: { 'content-type': 'text/event-stream' } });
+    }
+    if (path === '/users') return Response.json({ id: 1 });
+    if (path === '/core/session/1') return Response.json({ conversation_id: 7 });
+    if (path === '/users/1/memories') return Response.json([]);
+    if (path === '/character') return Response.json({});
+    if (path === '/core/conversations/7/turns') {
+      writes++;
+      const body = JSON.parse(init.body);
+      stored.set(body.request_id, body);
+      return Response.json(body);
+    }
+    if (path.startsWith('/core/conversations/7/turns/')) {
+      const id = path.split('/').at(-1);
+      return stored.has(id) ? Response.json(stored.get(id)) : Response.json({ error: 'Not found' }, { status: 404 });
+    }
+    return Response.json({});
+  };
+  const { app } = createGateway({ config, logger, fetchImpl: mockFetch });
+  await withApp(app, async base => {
+    await fetch(base + '/cloud/key', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ key: 'valid-secret-key' }) });
+    await fetch(base + '/cloud/models');
+    const connected = await fetch(base + '/cloud/connect', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"model":"chat-model"}' });
+    assert.equal(connected.status, 200);
+    const requestId = '12345678-1234-1234-1234-123456789abc';
+    const body = JSON.stringify({ requestId, messages: [{ role: 'user', content: 'Привет' }] });
+    const send = () => fetch(base + '/cloud/chat/stream', { method: 'POST', headers: { 'content-type': 'application/json' }, body });
+    const first = await send();
+    assert.equal(first.status, 200);
+    assert.match(await first.text(), /"type":"done"/);
+    const second = await send();
+    assert.match(await second.text(), /"replayed":true/);
+    assert.equal(generated, 1);
+    assert.equal(writes, 1);
+  });
 });
