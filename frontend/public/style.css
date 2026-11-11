@@ -20,3 +20,97 @@
 .conversation{align-self:center;width:min(800px,100%);height:min(60vh,620px);min-width:min(320px,100%);min-height:180px;max-width:100%;max-height:calc(100dvh - 230px);resize:both;overflow:auto;padding:20px 18px 28px;border:1px solid #3c3150;border-radius:16px;background:#13111dcc;scrollbar-color:#7d609f #211a2b}
 .conversation::after{content:"";position:sticky;bottom:0;align-self:flex-end;width:0;height:0}
 @media(max-width:650px){.conversation{width:100%;min-width:0;max-height:calc(100dvh - 200px);padding:14px 12px 25px}}
+
+
+/* Fluid layouts: ultrawide, laptop, tablet, phone and short landscape viewports. */
+html{min-width:280px;min-height:100%;overflow-x:hidden}
+body{min-width:280px;min-height:100dvh;overflow-x:hidden}
+.shell{min-height:100vh;min-height:100dvh;max-width:100vw}
+.workspace{min-width:0;min-height:100dvh}
+.topbar{flex-shrink:0;gap:14px;padding-inline:clamp(14px,3vw,64px)}
+.brand{min-width:0}.brand-title{overflow-wrap:anywhere}
+.top-actions{min-width:0;flex-shrink:0;gap:clamp(8px,2vw,24px)}
+.main{min-height:0;min-width:0;width:100%;flex:1 1 auto;overflow:auto;align-items:stretch;padding:clamp(10px,2vw,28px)}
+.welcome{margin:auto;width:100%;padding-block:12px}
+.welcome h1{font-size:clamp(28px,4vw,56px)}
+.intro{overflow-wrap:anywhere}
+.composer-wrap{flex-shrink:0;width:100%;padding:10px clamp(12px,3vw,64px) max(14px,env(safe-area-inset-bottom))}
+.composer{width:min(100%,1100px)}
+.composer textarea{min-width:0;width:100%;font-size:16px}
+.footer-note{line-height:1.5;overflow-wrap:anywhere}
+.conversation{flex:0 1 auto;max-width:min(100%,1400px);max-height:100%;min-height:min(180px,100%);height:min(60dvh,700px);overflow:auto;overflow-wrap:anywhere}
+.bubble{overflow-wrap:anywhere;word-break:break-word}
+.panel{max-width:100%;min-width:0}
+.panel-body{overscroll-behavior:contain}
+.panel-foot{gap:12px;flex-wrap:wrap}
+.avatar-settings-actions{max-width:100%}
+.yatsumi-avatar{max-width:30vw;max-height:32dvh}
+@media(min-width:1600px){
+ .rail{width:clamp(78px,5vw,110px)}
+ .topbar{height:clamp(92px,7vh,128px)}
+ .main{padding-inline:clamp(30px,5vw,110px)}
+ .conversation{width:min(72vw,1400px)}
+ .composer{width:min(72vw,1200px)}
+ .welcome{max-width:850px}
+}
+@media(max-width:900px){
+ .rail{width:56px;padding-block:20px}
+ .topbar{height:78px}
+ .brand-title{font-size:13px;letter-spacing:.15em}
+ .brand-sub{font-size:8px;letter-spacing:.14em}
+ .conversation{width:100%;max-width:100%}
+ .composer{max-width:100%}
+}
+@media(max-width:600px){
+ .rail{width:38px;flex-shrink:0;padding-block:16px}
+ .mark{font-size:24px}.fox{font-size:19px}
+ .topbar{height:66px;padding-inline:12px}
+ .brand-title{font-size:11px;letter-spacing:.08em}
+ .brand-sub{font-size:7px;letter-spacing:.06em}
+ .top-actions{gap:8px}
+ .top-actions .connection{display:none}
+ .icon-button{width:38px;height:38px;flex-shrink:0}
+ .main{padding:8px}
+ .welcome{padding:12px 4px}
+ .halo{width:110px;height:110px;margin-bottom:16px}
+ .kanji{font-size:54px}
+ .welcome h1{margin:12px 0}
+ .intro{font-size:13px;line-height:1.6}
+ .primary{margin-top:12px;padding:12px 16px}
+ .hint{margin-top:14px}
+ .composer-wrap{padding:8px 8px max(10px,env(safe-area-inset-bottom))}
+ .composer{padding:7px 8px 7px 12px;gap:6px}
+ .composer button{flex-shrink:0}
+ .footer-note{font-size:8px;letter-spacing:.07em;margin-top:8px}
+ .conversation{width:100%;min-width:0;min-height:100px;height:50dvh;max-height:100%;padding:12px 10px 20px;gap:10px}
+ .bubble{font-size:13px;padding:10px 12px;max-width:95%}
+ .panel-head{padding:22px 18px 16px}
+ .panel-body{padding:18px}
+ .panel-foot{padding:14px 18px}
+ .step{gap:10px;margin-bottom:18px;padding-bottom:20px}
+ .panel h2{font-size:23px}
+ .yatsumi-avatar{width:95px;height:120px;max-width:27vw;max-height:25dvh}
+}
+@media(max-height:650px){
+ .topbar{height:56px}
+ .main{padding-block:6px}
+ .welcome .halo{width:75px;height:75px;margin-bottom:8px}
+ .welcome .kanji{font-size:37px}
+ .welcome h1{margin:6px 0}
+ .welcome .hint{margin-top:8px}
+ .composer-wrap{padding-block:6px}
+ .footer-note{margin-top:5px}
+ .conversation{min-height:80px;height:42dvh;max-height:100%}
+ .yatsumi-avatar{max-height:22dvh}
+}
+@media(max-width:400px){
+ .brand-sub{display:none}
+ .rail{width:30px}
+ .topbar{padding-inline:8px}
+ .brand-title{font-size:10px}
+ .conversation{border-radius:10px}
+}
+@media(pointer:coarse){
+ .conversation{resize:none}
+ .icon-button,.close{min-width:40px;min-height:40px}
+}
