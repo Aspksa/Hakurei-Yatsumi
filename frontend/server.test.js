@@ -139,3 +139,25 @@ test('Core stream integrates Cloud, backend persistence, and replay without seco
     assert.equal(writes, 1);
   });
 });
+
+test('Owner avatar API uploads, retrieves, rejects invalid image and deletes', async () => {
+  const { app } = createGateway({ config, logger, fetchImpl: async () => Response.json({}) });
+  await withApp(app, async base => {
+    const png = Buffer.from([137,80,78,71,13,10,26,10,0,0,0,0]);
+    const put = await fetch(base + '/core/avatar', {
+      method: 'PUT', headers: { 'content-type': 'image/png' }, body: png
+    });
+    assert.equal(put.status, 200, await put.text().catch(() => ''));
+    const get = await fetch(base + '/core/avatar');
+    assert.equal(get.status, 200);
+    assert.equal(get.headers.get('content-type'), 'image/png');
+    assert.deepEqual(Buffer.from(await get.arrayBuffer()), png);
+    const invalid = await fetch(base + '/core/avatar', {
+      method: 'PUT', headers: { 'content-type': 'image/png' }, body: 'not a png'
+    });
+    assert.equal(invalid.status, 415);
+    const remove = await fetch(base + '/core/avatar', { method: 'DELETE' });
+    assert.equal(remove.status, 200);
+    assert.equal((await fetch(base + '/core/avatar')).status, 404);
+  });
+});
