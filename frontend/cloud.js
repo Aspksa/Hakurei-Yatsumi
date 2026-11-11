@@ -138,8 +138,59 @@ export function createCloudService({ fetchImpl = fetch, timeoutMs = 60000, sleep
       throw fail(problem, [401, 403, 404].includes(problem.httpStatus) || problem.code === 'STALE');
     }
   }
+  async function streamChat(messages, emit, signal) {
+    if (!connected || !selected) throw new CloudError('DISCONNECTED', 'Сначала подключите модель', 409);
+    validateMessages(messages);
+    const epoch = generation, model = selected;
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    signal?.addEventListener('abort', abort, { once: true });
+    const timer = setTimeout(abort, timeoutMs);
+    try {
+      const response = await fetchImpl(BASE + '/chat/completions', {
+        method: 'POST', redirect: 'manual',
+        headers: { Authorization: 'Bearer ' + key, 'content-type': 'application/json', Accept: 'text/event-stream' },
+        body: JSON.stringify({ model, messages, max_tokens: 1024, stream: true, stream_options: { include_usage: true } }),
+        signal: controller.signal
+      });
+      if (!response.ok || response.status >= 300 && response.status < 400) throw new CloudError('HTTP_' + response.status, httpMessages[response.status] || 'Ошибка Cloud.ru: HTTP ' + response.status, response.status);
+      if (!response.body) throw new CloudError('STREAM', 'Cloud.ru не вернул поток данных', 502);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '', answer = '', streamUsage = null;
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        if (buffer.length > 262144) throw new CloudError('STREAM_SIZE', 'Слишком большой потоковый ответ', 502);
+        const parts = buffer.split(/\r?\n\r?\n/);
+        buffer = parts.pop();
+        for (const part of parts) {
+          const data = part.split(/\r?\n/).filter(line => line.startsWith('data:')).map(line => line.slice(5).trim()).join('\n');
+          if (!data || data === '[DONE]') continue;
+          let chunk;
+          try { chunk = JSON.parse(data); } catch { throw new CloudError('STREAM_JSON', 'Cloud.ru вернул некорректный фрагмент потока', 502); }
+          const delta = chunk?.choices?.[0]?.delta?.content;
+          if (typeof delta === 'string') {
+            answer += delta;
+            if (answer.length > 200000) throw new CloudError('STREAM_SIZE', 'Ответ модели слишком длинный', 502);
+            emit({ type: 'delta', content: delta });
+          }
+          if (chunk.usage) streamUsage = chunk.usage;
+        }
+      }
+      if (epoch !== generation) throw new CloudError('STALE', 'Настройки изменились во время ответа', 409);
+      if (!answer.trim()) throw new CloudError('INVALID_RESPONSE', 'Модель вернула пустой ответ', 502);
+      collectUsage(streamUsage);
+      connected = true; verifiedAt = new Date().toISOString(); lastError = null;
+      emit({ type: 'done', model, usage: streamUsage });
+    } catch (error) {
+      const problem = fail(error, [401, 403, 404].includes(error?.httpStatus));
+      throw problem;
+    } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
+  }
   return {
-    status, listModels, connect, chat,
+    status, listModels, connect, chat, streamChat,
     setKey(value) {
       if (typeof value !== 'string' || value.trim().length < 8 || value.length > 4096 || /[\r\n]/.test(value)) throw new CloudError('KEY', 'Некорректный API-ключ', 400);
       invalidate(); key = value.trim(); selected = ''; models = []; lastError = null; usage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
