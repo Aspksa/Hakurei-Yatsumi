@@ -15,7 +15,7 @@ def test_atomic_idempotent_core_turn_and_rollback():
     with tempfile.TemporaryDirectory() as tmp:
         storage.DB_PATH = Path(tmp) / "core-v21.db"
         try:
-            with TestClient(app) as client:
+            with TestClient(app, raise_server_exceptions=False) as client:
                 headers = {"x-api-key": "test-secret"}
                 user = client.post("/users", json={"external_id": "test-core", "display_name": "Owner"}, headers=headers).json()
                 conversation = client.post("/conversations", json={"user_id": user["id"]}, headers=headers).json()
