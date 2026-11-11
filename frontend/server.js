@@ -117,7 +117,9 @@ export function createGateway({ config = readConfig(), fetchImpl = fetch, logger
     try {
       const upstream = await fetchImpl(new URL('/health', config.apiUrl), { headers: { 'x-api-key': config.apiKey }, signal: controller.signal, redirect: 'manual' });
       if (!upstream.ok) throw new Error('Python unhealthy');
-      res.json({ status: 'ok', node: 'ok', python: 'ok', sqlite: 'via-python', uptimeSeconds: Math.floor((Date.now() - metrics.started) / 1000), queue: queue.stats() });
+      const detail = await upstream.json();
+      if (detail.sqlite !== 'ok') throw new Error('SQLite unhealthy');
+      res.json({ status: 'ok', node: 'ok', python: 'ok', sqlite: 'ok', uptimeSeconds: Math.floor((Date.now() - metrics.started) / 1000), queue: queue.stats() });
     } catch {
       res.status(503).json({ status: 'degraded', node: 'ok', python: 'unavailable', sqlite: 'unknown', queue: queue.stats() });
     } finally { clearTimeout(timer); }
