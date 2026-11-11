@@ -1,6 +1,6 @@
 // Браузерные проверки интерфейса. Запуск: npm run test:e2e
 // (нужен Chromium: npx playwright install chromium). Бэкенд подменяется через page.route.
-import test, { before, after } from 'node:test';
+import test, { before, after, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { createGateway, readConfig } from '../server.js';
@@ -9,20 +9,25 @@ const config = { ...readConfig({ YATSUMI_API_KEY: 'e2e' }), apiKey: 'e2e' };
 let server, browser, base;
 
 before(async () => {
+  browser = await chromium.launch(process.env.PLAYWRIGHT_CHROMIUM_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH } : {});
+});
+after(async () => { await browser?.close(); });
+// Свежий шлюз на каждый тест: у шлюза есть лимит 120 запросов в минуту с одного адреса,
+// а страница грузит десяток файлов, так что общий шлюз упёрся бы в лимит и отдавал 429.
+beforeEach(async () => {
   const { app } = createGateway({ config, logger: () => {}, fetchImpl: async () => new Response('{}') });
   server = app.listen(0, '127.0.0.1');
   await new Promise(resolve => server.once('listening', resolve));
   base = 'http://127.0.0.1:' + server.address().port;
-  browser = await chromium.launch(process.env.PLAYWRIGHT_CHROMIUM_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH } : {});
 });
-after(async () => {
-  await browser?.close();
-  await new Promise(resolve => server?.close(resolve));
+afterEach(async () => {
+  server.closeAllConnections?.();
+  await new Promise(resolve => server.close(resolve));
 });
 
 const json = (route, body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 
-async function openPage({ connected = false, history = [], streamDelay = 0, storage = {}, viewport = { width: 1100, height: 800 } } = {}) {
+async function openPage({ connected = false, history = [], streamDelay = 0, storage = {}, viewport = { width: 1100, height: 800 }, time = null, avatar = true } = {}) {
   const context = await browser.newContext({ viewport });
   await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: base });
   const page = await context.newPage();
@@ -36,8 +41,11 @@ async function openPage({ connected = false, history = [], streamDelay = 0, stor
     if (streamDelay) await new Promise(resolve => setTimeout(resolve, streamDelay));
     await route.fulfill({ status: 200, contentType: 'text/event-stream', body: 'data: {"type":"delta","content":"Ответ"}\n\ndata: {"type":"done"}\n\n' });
   });
+  if (time) await page.clock.install({ time: new Date(time) });
+  if (!avatar) await page.route('**/core/avatar*', route => route.fulfill({ status: 204 }));
   await page.goto(base + '/');
-  await page.locator('#yatsumiAvatar').waitFor({ state: 'visible' });
+  if (avatar) await page.locator('#yatsumiAvatar').waitFor({ state: 'visible' });
+  else await page.locator('html[data-no-avatar]').waitFor({ state: 'attached' });
   return { page, context, calls };
 }
 const openChat = page => page.click('#yatsumiAvatar');
@@ -48,7 +56,7 @@ test('empty state guides setup and opens settings without a Memory section', asy
   await openChat(page);
   await page.locator('#emptyAction').click();
   assert.equal(await page.locator('#overlay').evaluate(d => d.open), true);
-  assert.deepEqual(await page.locator('.tab').allTextContents(), ['Подключение', 'Аватар', 'Оформление']);
+  assert.deepEqual(await page.locator('.tab').allTextContents(), ['Подключение', 'Главная', 'Аватар', 'Оформление']);
   assert.equal(await page.getByText('Память').count(), 0);
   await context.close();
 });
@@ -156,7 +164,117 @@ test('avatar animation follows the setting and reacts while Yatsumi replies', as
 
 test('mobile layout has no horizontal overflow', async () => {
   const { page, context } = await openPage({ viewport: { width: 390, height: 780 } });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'home');
   await openChat(page); await page.click('#settingsOpen'); await page.click('#tab-look');
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.click('#tab-home');
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'home tab');
+  await context.close();
+});
+
+const NOW = '2026-11-04T10:15:30';
+
+test('home: clock, date and today in the production calendar', async () => {
+  const { page, context } = await openPage({ time: NOW });
+  assert.match(await page.textContent('#clockTime'), /^10:15:\d\d$/);
+  assert.equal(await page.textContent('#clockDate'), 'Среда, 4 ноября 2026');
+  assert.equal(await page.textContent('#clockSub'), 'Сегодня: День народного единства');
+  assert.equal(await page.textContent('#calMonth'), 'Ноябрь 2026');
+  const today = page.locator('.cal-day.is-today');
+  assert.equal(await today.getAttribute('data-key'), '2026-11-04');
+  assert.match(await today.getAttribute('class'), /k-holiday/);
+  assert.match(await page.textContent('#calStats'), /рабочих дней 20, выходных и праздничных 10, норма 159 ч/);
+  assert.match(await page.textContent('#calStats'), /2026 год: рабочих 247, выходных 118, норма 1972 ч/);
+  await context.close();
+});
+
+test('home: 2027 calendar shows the working Saturday, transfers and month norm', async () => {
+  const { page, context } = await openPage({ time: NOW });
+  await page.click('#calYear [data-year="2027"]');
+  assert.equal(await page.textContent('#calMonth'), 'Ноябрь 2027');
+  assert.match(await page.getAttribute('.cal-day[data-key="2027-11-05"]', 'class'), /k-transfer/);
+  for (let i = 0; i < 9; i++) await page.click('#calPrev');
+  assert.equal(await page.textContent('#calMonth'), 'Февраль 2027');
+  const saturday = await page.getAttribute('.cal-day[data-key="2027-02-20"]', 'class');
+  assert.match(saturday, /k-extra-work/);
+  assert.match(saturday, /is-short/);
+  assert.match(await page.getAttribute('.cal-day[data-key="2027-02-22"]', 'class'), /k-transfer/);
+  assert.match(await page.textContent('#calStats'), /рабочих дней 19, выходных и праздничных 9, норма 151 ч/);
+  await page.click('#calToday');
+  assert.equal(await page.textContent('#calMonth'), 'Ноябрь 2026');
+  await context.close();
+});
+
+test('home: calendar days are reachable with the keyboard', async () => {
+  const { page, context } = await openPage({ time: NOW });
+  await page.locator('.cal-day.is-today').focus();
+  await page.keyboard.press('ArrowRight');
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.key), '2026-11-05');
+  await page.keyboard.press('ArrowDown');
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.key), '2026-11-12');
+  await page.keyboard.press('PageDown');
+  assert.equal(await page.textContent('#calMonth'), 'Декабрь 2026');
+  await context.close();
+});
+
+test('home: tasks can be added, completed, deleted and survive a reload', async () => {
+  const { page, context } = await openPage({ time: NOW });
+  await page.fill('#taskText', 'Купить хлеб'); await page.press('#taskText', 'Enter');
+  await page.fill('#taskText', 'Оплатить интернет'); await page.fill('#taskDate', '2026-11-10'); await page.click('#taskAdd');
+  assert.equal(await page.locator('.task').count(), 2);
+  assert.equal(await page.inputValue('#taskDate'), '', 'the date does not stick to the next task');
+  assert.equal(await page.textContent('#tasksCount'), 'Осталось: 2');
+  assert.equal(await page.locator('.cal-day[data-key="2026-11-10"].has-tasks').count(), 1);
+  await page.reload();
+  assert.equal(await page.locator('.task').count(), 2);
+  await page.locator('.task', { hasText: 'Купить хлеб' }).locator('input[type=checkbox]').click();
+  assert.equal(await page.locator('.task').count(), 1);
+  await page.click('#taskFilter [data-v="done"]');
+  assert.equal(await page.locator('.task').count(), 1);
+  assert.equal(await page.textContent('.task-text'), 'Купить хлеб');
+  await page.click('#taskClearDone');
+  assert.equal(await page.locator('.task').count(), 0);
+  await page.click('#taskFilter [data-v="active"]');
+  await page.locator('.task', { hasText: 'Оплатить интернет' }).locator('.task-del').click();
+  assert.equal(await page.locator('.task').count(), 0);
+  assert.equal(await page.getAttribute('.task-empty', 'hidden'), null);
+  await context.close();
+});
+
+test('home: a calendar day offers its own tasks', async () => {
+  const { page, context } = await openPage({ time: NOW });
+  await page.fill('#taskText', 'День рождения'); await page.fill('#taskDate', '2026-11-20'); await page.click('#taskAdd');
+  await page.fill('#taskText', 'Без даты'); await page.click('#taskAdd');
+  await page.click('.cal-day[data-key="2026-11-20"]');
+  assert.equal(await page.inputValue('#taskDate'), '2026-11-20');
+  await page.getByRole('button', { name: 'Дела на этот день: 1' }).click();
+  assert.equal(await page.locator('.task').count(), 1);
+  assert.equal(await page.textContent('.task-text'), 'День рождения');
+  await page.click('#dayFilterClear');
+  assert.equal(await page.locator('.task').count(), 2);
+  await context.close();
+});
+
+test('home widgets can be hidden from settings and the choice persists', async () => {
+  const { page, context } = await openPage({ time: NOW });
+  await openChat(page); await page.click('#settingsOpen'); await page.click('#tab-home');
+  await page.uncheck('#dashCalendar'); await page.uncheck('#dashSeconds');
+  await page.click('#settingsClose');
+  assert.equal(await page.isVisible('#calendarCard'), false);
+  assert.equal(await page.isVisible('#tasksCard'), true);
+  assert.equal(await page.isVisible('.clock-time .sec'), false);
+  await page.reload();
+  assert.equal(await page.isVisible('#calendarCard'), false);
+  await context.close();
+});
+
+test('without an avatar the chat opens from a launcher button and is closed by default', async () => {
+  const { page, context } = await openPage({ avatar: false });
+  assert.equal(await page.isVisible('#chatPanel'), false);
+  assert.equal(await page.isVisible('#chatLauncher'), true);
+  await page.click('#chatLauncher');
+  assert.equal(await page.isVisible('#chatPanel'), true);
+  await page.click('#chatClose');
+  assert.equal(await page.isVisible('#chatPanel'), false);
   await context.close();
 });

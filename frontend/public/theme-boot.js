@@ -1,6 +1,7 @@
 // Применяет сохранённое оформление до отрисовки страницы. Хранится только в браузере.
 (() => {
-  const THEME_KEY = 'yatsumi-theme-v1', AV_KEY = 'yatsumi-avatar-prefs-v1';
+  const THEME_KEY = 'yatsumi-theme-v1', AV_KEY = 'yatsumi-avatar-prefs-v1', DASH_KEY = 'yatsumi-dash-prefs-v1';
+  const dashDefaults = { clock: true, seconds: true, calendar: true, tasks: true };
   const themeDefaults = { accent: '#d4af37', bg: 'black', shape: 'round', fill: 'metal', font: 100 };
   const avatarDefaults = { show: true, size: null, shape: 'free', glow: true, anim: 'float', snap: true };
   const presets = [
@@ -76,9 +77,15 @@
     set('--av-glow', prefs.glow === false ? '0' : '1');
     if (Number.isFinite(prefs.size)) set('--av-size', prefs.size + 'px'); else root.style.removeProperty('--av-size');
   }
-  const api = { themeDefaults, avatarDefaults, presets, readTheme: () => read(THEME_KEY, themeDefaults), readAvatar: () => read(AV_KEY, avatarDefaults),
+  function applyDash(prefs) {
+    const root = document.documentElement;
+    for (const key of ['clock', 'calendar', 'tasks']) root.toggleAttribute('data-hide-' + key, prefs[key] === false);
+    root.toggleAttribute('data-hide-seconds', prefs.seconds === false);
+  }
+  const api = { themeDefaults, avatarDefaults, presets, dashDefaults, readDash: () => read(DASH_KEY, dashDefaults), saveDash(d) { write(DASH_KEY, d); applyDash(d); }, readTheme: () => read(THEME_KEY, themeDefaults), readAvatar: () => read(AV_KEY, avatarDefaults),
     saveTheme(t) { write(THEME_KEY, t); applyTheme(t); }, saveAvatar(a) { write(AV_KEY, a); applyAvatar(a); window.dispatchEvent(new Event('resize')); } };
   window.YatsumiTheme = api;
   applyTheme(api.readTheme());
   applyAvatar(api.readAvatar());
+  applyDash(api.readDash());
 })();

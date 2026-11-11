@@ -44,7 +44,12 @@ const chatPanel = $('chatPanel');
 function setChatOpen(open) {
   chatPanel.classList.toggle('is-open', open);
   $('yatsumiAvatar').setAttribute('aria-expanded', String(open));
+  $('chatLauncher').setAttribute('aria-expanded', String(open));
   if (open) { scrollToLatest(); message.focus(); }
+}
+function focusOpener() {
+  const avatarButton = $('yatsumiAvatar');
+  (getComputedStyle(avatarButton).display === 'none' ? $('chatLauncher') : avatarButton).focus();
 }
 function openSettings() {
   if (!overlay.open) overlay.showModal();
@@ -86,13 +91,14 @@ async function configure(work) {
   finally { configuring = false; updateControls(); }
 }
 $('settingsOpen').addEventListener('click', openSettings);
+$('chatLauncher').addEventListener('click', () => setChatOpen(!chatPanel.classList.contains('is-open')));
 $('emptyAction').addEventListener('click', openSettings);
 $('statusButton').addEventListener('click', openSettings);
 document.addEventListener('keydown', event => {
-  if (event.key === 'Escape' && !overlay.open && chatPanel.classList.contains('is-open')) { setChatOpen(false); $('yatsumiAvatar').focus(); }
+  if (event.key === 'Escape' && !overlay.open && chatPanel.classList.contains('is-open')) { setChatOpen(false); focusOpener(); }
 });
 $('settingsClose').addEventListener('click', closeSettings);
-$('chatClose').addEventListener('click', () => { setChatOpen(false); $('yatsumiAvatar').focus(); });
+$('chatClose').addEventListener('click', () => { setChatOpen(false); focusOpener(); });
 $('settingsCloseBackdrop').addEventListener('click', closeSettings);
 $('toggleKey').addEventListener('click', () => {
   const visible = $('apiKey').type === 'password';

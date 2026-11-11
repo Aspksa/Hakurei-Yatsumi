@@ -10,7 +10,55 @@
 </head>
 <body>
 <div class="app">
-  <main class="chat" id="chatPanel" aria-label="Чат с Яцуми">
+  <main class="dash" id="dash" aria-label="Главная">
+    <section class="card clock-card" id="clockCard" aria-label="Часы">
+      <div class="clock-time" id="clockTime" aria-hidden="true"></div>
+      <div class="clock-date" id="clockDate"></div>
+      <div class="clock-sub" id="clockSub"></div>
+    </section>
+
+    <section class="card calendar-card" id="calendarCard" aria-labelledby="calTitle">
+      <div class="card-head">
+        <h2 id="calTitle">Производственный календарь</h2>
+        <div class="segmented small" id="calYear" role="group" aria-label="Год"><button type="button" data-year="2026">2026</button><button type="button" data-year="2027">2027</button></div>
+      </div>
+      <div class="cal-nav">
+        <button type="button" class="icon-button small" id="calPrev" aria-label="Предыдущий месяц"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <div class="cal-month" id="calMonth" aria-live="polite"></div>
+        <button type="button" class="icon-button small" id="calNext" aria-label="Следующий месяц"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+        <button type="button" class="link-button" id="calToday">Сегодня</button>
+      </div>
+      <div class="cal-grid" id="calGrid" role="group" aria-labelledby="calMonth"></div>
+      <ul class="legend" aria-label="Обозначения">
+        <li><i class="sw holiday"></i>Праздник</li>
+        <li><i class="sw transfer"></i>Перенесённый выходной</li>
+        <li><i class="sw weekend"></i>Выходной</li>
+        <li><i class="sw short"></i>Сокращённый день</li>
+        <li><i class="sw extra"></i>Рабочая суббота</li>
+      </ul>
+      <div class="cal-stats" id="calStats"></div>
+      <div class="cal-detail" id="calDetail" role="status"></div>
+      <ul class="cal-notes" id="calNotes"></ul>
+    </section>
+
+    <section class="card tasks-card" id="tasksCard" aria-labelledby="tasksTitle">
+      <div class="card-head">
+        <h2 id="tasksTitle">Дела</h2>
+        <span class="small-note" id="tasksCount"></span>
+      </div>
+      <form class="task-form" id="taskForm">
+        <input id="taskText" type="text" maxlength="300" placeholder="Новое дело…" aria-label="Новое дело" autocomplete="off">
+        <input id="taskDate" type="date" aria-label="Срок (необязательно)" title="Срок (необязательно)">
+        <button class="primary" type="submit" id="taskAdd">Добавить</button>
+      </form>
+      <div class="segmented small" id="taskFilter" role="group" aria-label="Фильтр дел"><button type="button" data-v="active">Активные</button><button type="button" data-v="done">Выполненные</button><button type="button" data-v="all">Все</button></div>
+      <div class="day-filter" id="dayFilter" hidden><span id="dayFilterText"></span><button type="button" class="link-button" id="dayFilterClear">Показать все дни</button></div>
+      <ul class="task-list" id="taskList"></ul>
+      <p class="task-empty" id="taskEmpty" hidden></p>
+      <div class="row-actions"><button type="button" class="link-button" id="taskClearDone" hidden>Удалить выполненные</button></div>
+    </section>
+  </main>
+  <section class="chat" id="chatPanel" aria-label="Чат с Яцуми">
     <div class="chat-head">
       <div class="chat-title"><h1>Яцуми</h1>
         <button type="button" id="statusButton" class="connection" aria-live="polite" title="Открыть настройки подключения"><span id="headerDot" class="dot red"></span><span id="headerStatus">Не подключено</span></button></div>
@@ -37,10 +85,12 @@
       </button>
     </form>
     <p id="chatNotice" class="chat-notice" role="status" hidden></p>
-  </main>
+  </section>
 </div>
 
 <button id="yatsumiAvatar" class="yatsumi-avatar" type="button" aria-label="Яцуми: открыть или закрыть чат" aria-controls="chatPanel" aria-expanded="false" title="Нажмите, чтобы открыть чат" hidden><img alt="" draggable="false"></button>
+
+<button id="chatLauncher" class="launcher" type="button" aria-controls="chatPanel" aria-expanded="false" aria-label="Открыть чат с Яцуми" title="Чат с Яцуми"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.7 7L4 20.5l1.5-4.8A8 8 0 1 1 21 12Z"/></svg></button>
 
 <dialog id="overlay" class="overlay" aria-labelledby="settingsTitle">
   <div class="scrim" id="settingsCloseBackdrop"></div>
@@ -54,6 +104,7 @@
     <div id="notice" class="notice" role="status"></div>
     <div class="tabs" role="tablist" aria-label="Разделы настроек">
       <button class="tab" role="tab" id="tab-connection" data-tab="connection" aria-selected="true">Подключение</button>
+      <button class="tab" role="tab" id="tab-home" data-tab="home" aria-selected="false">Главная</button>
       <button class="tab" role="tab" id="tab-avatar" data-tab="avatar" aria-selected="false">Аватар</button>
       <button class="tab" role="tab" id="tab-look" data-tab="look" aria-selected="false">Оформление</button>
     </div>
@@ -87,6 +138,16 @@
             <button class="primary" id="connectModel" disabled>Подключить модель</button>
           </li>
         </ol>
+      </section>
+
+      <section class="group" data-tab="home" hidden>
+        <div class="group-head"><h3>Главная страница</h3></div>
+        <p>Что показывать на главной. Дела хранятся в этом браузере.</p>
+        <label class="toggle"><span>Часы</span><input type="checkbox" id="dashClock"></label>
+        <label class="toggle"><span>Секунды в часах</span><input type="checkbox" id="dashSeconds"></label>
+        <label class="toggle"><span>Календарь</span><input type="checkbox" id="dashCalendar"></label>
+        <label class="toggle"><span>Дела</span><input type="checkbox" id="dashTasks"></label>
+        <div class="row-actions"><button class="link-button" id="dashReset" type="button">Показать всё</button></div>
       </section>
 
       <section class="group" data-tab="avatar" hidden>
@@ -127,4 +188,5 @@
 <script type="module" src="/app.js"></script>
 <script type="module" src="/avatar-settings.js"></script>
 <script type="module" src="/appearance.js"></script>
+<script type="module" src="/dashboard.js"></script>
 </body></html>
