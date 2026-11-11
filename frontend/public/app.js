@@ -66,6 +66,7 @@ $('connectModel').addEventListener('click', async () => {
   try {
     const state = await api('/cloud/connect', { method: 'POST', body: JSON.stringify({ model: $('modelSelect').value }) });
     setStatus(state);
+    try { localStorage.setItem('yatsumi-cloud-model', state.model || ''); } catch {}
     notice('Модель подключена. Можно начать диалог.');
     closeSettings();
   } catch (error) { notice(error.message); try { setStatus(await api('/cloud/status')); } catch {} }
@@ -79,6 +80,7 @@ $('forgetKey').addEventListener('click', async () => {
     $('modelSelect').disabled = true;
     $('connectModel').disabled = true;
     $('modelCount').textContent = 'Модели ещё не загружены';
+    try { localStorage.removeItem('yatsumi-cloud-model'); } catch {}
     notice('Ключ сброшен.');
   } catch (error) { notice(error.message); }
 });
@@ -138,6 +140,8 @@ $('message').addEventListener('keydown', event => { if (event.key === 'Enter' &&
     const state = await api('/cloud/status');
     setStatus(state);
     if (state.configured) await refreshModels();
-    if (state.model && $('modelSelect').querySelector('option[value="' + CSS.escape(state.model) + '"]')) $('modelSelect').value = state.model;
+    let preferred = state.model;
+    try { preferred ||= localStorage.getItem('yatsumi-cloud-model'); } catch {}
+    if (preferred && [...$('modelSelect').options].some(option => option.value === preferred)) { $('modelSelect').value = preferred; $('connectModel').disabled = false; }
   } catch { setStatus({ configured: false, connected: false }); }
 })();
