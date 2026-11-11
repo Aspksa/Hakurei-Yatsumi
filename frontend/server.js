@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCloudService } from './cloud.js';
 import { createYatsumiCore } from './core.js';
-import { avatarRouter } from './avatar-store.js';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, renameSync, statSync } from 'node:fs';
@@ -118,7 +118,48 @@ export function createGateway({ config = readConfig(), fetchImpl = fetch, logger
     res.once('finish', () => logger('info', 'request', { requestId, method: req.method, status: res.statusCode, durationMs: Date.now() - now }));
     next();
   });
-  app.use('/core', avatarRouter({ directory: join(fileURLToPath(new URL('.', import.meta.url)), 'data') }));
+  // Single-owner avatar API: persisted as one file inside frontend/data.
+  const avatarDirectory = join(fileURLToPath(new URL('.', import.meta.url)), 'data');
+  const avatarPath = join(avatarDirectory, 'avatar.bin');
+  const avatarFormats = [
+    { type: 'image/png', match: bytes => bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) },
+    { type: 'image/jpeg', match: bytes => bytes.length > 3 && bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255 },
+    { type: 'image/webp', match: bytes => bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP' }
+  ];
+  app.get('/core/avatar', async (_req, res) => {
+    try {
+      const bytes = await readFile(avatarPath);
+      const type = avatarFormats.find(format => format.match(bytes))?.type;
+      if (!type) return res.status(500).json({ error: 'Повреждённый аватар' });
+      res.setHeader('content-type', type);
+      res.setHeader('cache-control', 'no-store');
+      res.setHeader('x-content-type-options', 'nosniff');
+      return res.end(bytes);
+    } catch (error) {
+      return res.status(error.code === 'ENOENT' ? 404 : 500).json({ error: 'Аватар не найден' });
+    }
+  });
+  app.put('/core/avatar', express.raw({ type: ['image/png', 'image/jpeg', 'image/webp'], limit: '10mb' }), async (req, res) => {
+    const bytes = req.body;
+    const format = avatarFormats.find(item => item.type === req.get('content-type')?.split(';')[0] &&
+      Buffer.isBuffer(bytes) && bytes.length > 0 && item.match(bytes));
+    if (!format) return res.status(415).json({ error: 'Нужен корректный PNG, JPEG или WebP' });
+    const tmp = join(avatarDirectory, '.' + randomUUID() + '.tmp');
+    try {
+      await mkdir(avatarDirectory, { recursive: true });
+      await writeFile(tmp, bytes, { flag: 'wx', mode: 0o600 });
+      await rename(tmp, avatarPath);
+      return res.json({ ok: true, type: format.type, size: bytes.length });
+    } catch {
+      return res.status(500).json({ error: 'Не удалось сохранить аватар' });
+    } finally { await rm(tmp, { force: true }).catch(() => {}); }
+  });
+  app.delete('/core/avatar', async (_req, res) => {
+    try {
+      await rm(avatarPath, { force: true });
+      return res.json({ ok: true });
+    } catch { return res.status(500).json({ error: 'Не удалось удалить аватар' }); }
+  });
   app.use(express.json({ limit: '128kb', strict: true }));
   app.get('/gateway/health', async (req, res) => {
     const controller = new AbortController();
