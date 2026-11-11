@@ -154,6 +154,20 @@ export function createGateway({ config = readConfig(), fetchImpl = fetch, logger
     try { res.json(await cloud.chat(req.body?.messages)); }
     catch (error) { cloudError(res, error); }
   });
+  app.post('/cloud/chat/stream', async (req, res) => {
+    const controller = new AbortController();
+    res.setHeader('content-type', 'text/event-stream; charset=utf-8');
+    res.setHeader('cache-control', 'no-cache, no-store');
+    res.setHeader('x-accel-buffering', 'no');
+    const send = value => { if (!res.destroyed) res.write('data: ' + JSON.stringify(value) + '\n\n'); };
+    const onClose = () => { if (!res.writableEnded) controller.abort(); };
+    res.on('close', onClose);
+    try {
+      await cloud.streamChat(req.body?.messages, send, controller.signal);
+    } catch (error) {
+      send({ type: 'error', code: error?.code || 'STREAM', error: error?.message || 'Ошибка Cloud.ru' });
+    } finally { res.off('close', onClose); res.end(); }
+  });
   app.use('/api', async (req, res) => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), config.timeoutMs);
