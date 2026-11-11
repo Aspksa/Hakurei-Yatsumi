@@ -102,9 +102,29 @@ $('chatForm').addEventListener('submit', async event => {
   const loading = bubble('assistant', 'Яцуми думает…');
   $('send').disabled = true;
   try {
-    const response = await api('/cloud/chat', { method: 'POST', body: JSON.stringify({ messages: history.slice(-30) }) });
-    loading.textContent = response.content;
-    history.push({ role: 'assistant', content: response.content });
+    const response = await fetch('/cloud/chat/stream', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ messages: history.slice(-30) }) });
+    if (!response.ok || !response.body) throw new Error('Поток Cloud.ru недоступен: HTTP ' + response.status);
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '', answer = '', complete = false;
+    loading.textContent = '';
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split(/\r?\n\r?\n/);
+      buffer = parts.pop();
+      for (const part of parts) {
+        const data = part.split(/\r?\n/).filter(line => line.startsWith('data:')).map(line => line.slice(5).trim()).join('\n');
+        if (!data) continue;
+        const event = JSON.parse(data);
+        if (event.type === 'error') throw new Error(event.error);
+        if (event.type === 'delta') { answer += event.content; loading.textContent = answer; }
+        if (event.type === 'done') complete = true;
+      }
+    }
+    if (!complete) throw new Error('Соединение оборвалось до завершения ответа');
+    history.push({ role: 'assistant', content: answer });
     try { setStatus(await api('/cloud/status')); } catch {}
   } catch (error) {
     loading.textContent = 'Ошибка: ' + error.message;
