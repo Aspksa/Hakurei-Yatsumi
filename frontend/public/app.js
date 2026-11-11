@@ -40,6 +40,17 @@ async function refreshModels() {
     try { setStatus(await api('/cloud/status')); } catch {}
   }
 }
+$('saveMemory').addEventListener('click', async () => {
+  const key = $('memoryKey').value.trim(), value = $('memoryValue').value.trim();
+  if (!key || !value) return notice('Укажите название и содержание воспоминания.');
+  $('saveMemory').disabled = true;
+  try {
+    await api('/core/memory', { method: 'POST', body: JSON.stringify({ key, value }) });
+    $('memoryKey').value = ''; $('memoryValue').value = '';
+    notice('Воспоминание сохранено в SQLite.');
+  } catch (error) { notice(error.message); }
+  finally { $('saveMemory').disabled = false; }
+});
 $('settingsOpen').addEventListener('click', openSettings);
 $('setupStart').addEventListener('click', openSettings);
 $('settingsClose').addEventListener('click', closeSettings);
@@ -139,6 +150,18 @@ $('message').addEventListener('keydown', event => { if (event.key === 'Enter' &&
   try {
     const state = await api('/cloud/status');
     setStatus(state);
+    try {
+      const saved = await api('/core/history');
+      if (Array.isArray(saved.messages) && saved.messages.length) {
+        $('welcome').hidden = true; $('conversation').hidden = false;
+        for (const message of saved.messages) {
+          if (['user', 'assistant'].includes(message.role)) {
+            history.push({ role: message.role, content: message.content });
+            bubble(message.role, message.content);
+          }
+        }
+      }
+    } catch { /* SQLite may be offline; cloud status remains independently usable */ }
     if (state.configured) await refreshModels();
     let preferred = state.model;
     try { preferred ||= localStorage.getItem('yatsumi-cloud-model'); } catch {}
