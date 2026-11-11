@@ -13,6 +13,7 @@ $state=Join-Path $logs 'services.json'
 $startup=Join-Path $logs 'startup.log'
 $api=$null
 $gateway=$null
+$lock=$null
 function Log([string]$s) {
  $line="[$(Get-Date -Format o)] $s"
  Write-Host $line
@@ -49,7 +50,7 @@ function Find-Python {
  foreach($p in @($paths|Select-Object -Unique)) {
   try {
    if(-not (Test-Path -LiteralPath $p)){continue}
-   $v=@(& $p -c 'import sys; print("{}.{}.{}".format(*sys.version_info[:3]))' 2>$null)
+   $v=@(& $p -c 'import sys; print(sys.version.split()[0])' 2>$null)
    if($LASTEXITCODE -eq 0 -and $v.Count -and [version]$v[0] -ge [version]'3.10'){return $p}
   }catch{}
  }
@@ -106,13 +107,16 @@ function Owned([object]$entry) {
  }catch{return $false}
 }
 function Stop-Owned([object]$entry) {
- if(Owned $entry){Stop-Process -Id ([int]$entry.pid) -Force -ErrorAction SilentlyContinue}
+ if(Owned $entry){
+  & taskkill.exe /PID ([int]$entry.pid) /T /F | Out-Null
+  if($LASTEXITCODE -ne 0 -and (Owned $entry)){Log "Could not stop PID $($entry.pid)"}
+ }
 }
 function Launch([string]$exe,[string]$arguments,[string]$directory,[string]$name) {
  Rotate (Join-Path $logs "$name.stdout.log")
  Rotate (Join-Path $logs "$name.stderr.log")
  $p=Start-Process -FilePath $exe -ArgumentList $arguments -WorkingDirectory $directory -RedirectStandardOutput (Join-Path $logs "$name.stdout.log") -RedirectStandardError (Join-Path $logs "$name.stderr.log") -PassThru
- return @{pid=$p.Id;path=$exe;started=$p.StartTime.ToUniversalTime().ToString('o')}
+ return @{pid=$p.Id;path=$p.Path;started=$p.StartTime.ToUniversalTime().ToString('o')}
 }
 function Wait-Health([string]$url,[object]$entry) {
  for($i=0;$i -lt 40;$i++) {
@@ -122,6 +126,27 @@ function Wait-Health([string]$url,[object]$entry) {
  }
  throw "Service not healthy after 40 seconds: $url"
 }
+function Open-Browser {
+ if(-not $NoBrowser){
+  try{Start-Process 'http://127.0.0.1:3000/'}
+  catch{Log 'Could not open the browser. Visit http://127.0.0.1:3000/.'}
+ }
+}
+function Ensure-Watchdog {
+ if($NoWatchdog){return}
+ $watchState=Join-Path $logs 'watchdog.json'
+ if(Test-Path -LiteralPath $watchState){
+  try{
+   $previous=Get-Content -LiteralPath $watchState -Raw -Encoding UTF8|ConvertFrom-Json
+   if(Owned $previous){return}
+  }catch{}
+ }
+ $watchScript=Join-Path $root 'scripts\watchdog.ps1'
+ $powershell=Join-Path $PSHOME 'powershell.exe'
+ $rootArgument=Join-Path $root '.'
+ $watch=Start-Process -FilePath $powershell -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+$watchScript+'"'),'-ProjectRoot',('"'+$rootArgument+'"')) -WorkingDirectory $root -WindowStyle Hidden -PassThru
+ @{pid=$watch.Id;path=$watch.Path;started=$watch.StartTime.ToUniversalTime().ToString('o')}|ConvertTo-Json|Set-Content -LiteralPath $watchState -Encoding UTF8
+}
 function Report([string]$errorText) {
  $report=Join-Path $logs 'diagnostics.txt'
  $lines=@("Hakurei Yatsumi v3 diagnostics","Time: $(Get-Date -Format o)","Windows: $([Environment]::OSVersion.VersionString)","PowerShell: $($PSVersionTable.PSVersion)","Architecture: $env:PROCESSOR_ARCHITECTURE","Root: $root","Error: $errorText","Ports: 8000, 3000","See startup.log and *.stderr.log")
@@ -129,6 +154,8 @@ function Report([string]$errorText) {
 }
 try {
  [IO.Directory]::CreateDirectory($logs)|Out-Null
+ try{$lock=[IO.File]::Open((Join-Path $logs 'launcher.lock'),'OpenOrCreate','ReadWrite','None')}
+ catch [IO.IOException]{Write-Host 'Another launch or stop operation is running.';exit 1}
  Rotate $startup
  Log '=== Hakurei Yatsumi BAT v3 ==='
  if(-not $IsWindows -and $PSVersionTable.PSEdition -eq 'Core' -and [Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT){throw 'Windows required'}
@@ -144,6 +171,7 @@ try {
  if($drive.DriveType -eq [IO.DriveType]::Network){Log 'WARNING: network drive; latency and permissions may affect installation'}
  if($env:YATSUMI_OFFLINE -eq '1'){$Offline=$true}
  Log "Windows=$([Environment]::OSVersion.VersionString); architecture=$env:PROCESSOR_ARCHITECTURE; offline=$Offline"
+ if($Diagnostics){Log 'Preflight completed';Report 'Preflight only';exit 0}
  $keyFile=Join-Path $root '.yatsumi-api-key'
  if(-not (Test-Path -LiteralPath $keyFile)){
   $bytes=New-Object byte[] 32;$rng=[Security.Cryptography.RandomNumberGenerator]::Create()
@@ -156,9 +184,10 @@ try {
  if(Test-Path -LiteralPath $state) {
   try {
    $saved=Get-Content -LiteralPath $state -Raw -Encoding UTF8 | ConvertFrom-Json
-   if((Owned $saved.python) -and (Owned $saved.node) -and (Health 'http://127.0.0.1:8000/health') -and (Health 'http://127.0.0.1:3000/api/health')){
+   if((Owned $saved.python) -and (Owned $saved.node) -and (Health 'http://127.0.0.1:8000/health') -and (Health 'http://127.0.0.1:3000/gateway/health')){
     Log 'Already running; no duplicate services started'
-    if(-not $NoBrowser){Start-Process 'http://127.0.0.1:3000/'}
+    Ensure-Watchdog
+    Open-Browser
     exit 0
    }
    Stop-Owned $saved.node;Stop-Owned $saved.python
@@ -176,7 +205,6 @@ try {
    }
   }finally{$client.Close()}
  }
- if($Diagnostics){Log 'Preflight completed';Report 'Preflight only';exit 0}
  $python=Find-Python
  if(-not $python){Install-Dependency 'Python.Python.3.12' 'https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe' '.exe';$python=Find-Python}
  if(-not $python){throw 'Python >=3.10 missing after installation. Reopen terminal or install manually.'}
@@ -198,11 +226,12 @@ try {
  }
  if($Offline){
   Run 'offline Python dependency check' {& $venvPython -c 'import fastapi, uvicorn, httpx, pytest'}
-  if(-not (Test-Path -LiteralPath (Join-Path $root 'frontend\node_modules\express'))){throw 'Offline: node_modules/express missing. Run online once.'}
+  Push-Location -LiteralPath (Join-Path $root 'frontend')
+  try{Run 'offline Node dependency check (run online if missing)' {& $node -e "require('express'); require('ws')"}}finally{Pop-Location}
  }else{
   Retry 'pip install' {& $venvPython -m pip install -r (Join-Path $root 'backend\requirements.txt') 2>&1 | ForEach-Object {Log ([string]$_)}}
   Push-Location -LiteralPath (Join-Path $root 'frontend')
-  try{Retry 'npm install' {& $npm install --no-audit --no-fund 2>&1 | ForEach-Object {Log ([string]$_)}}}finally{Pop-Location}
+  try{Retry 'npm ci' {& $npm ci --no-audit --no-fund 2>&1 | ForEach-Object {Log ([string]$_)}}}finally{Pop-Location}
  }
  Log 'Checking SQLite and creating online backup before migration'
  Run 'SQLite preflight' {& $venvPython -m backend.app.db --preflight}
@@ -211,29 +240,19 @@ try {
  $api=Launch $venvPython '-m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000' $root 'python'
  Wait-Health 'http://127.0.0.1:8000/health' $api
  $gateway=Launch $node 'server.js' (Join-Path $root 'frontend') 'node'
- Wait-Health 'http://127.0.0.1:3000/api/health' $gateway
+ Wait-Health 'http://127.0.0.1:3000/gateway/health' $gateway
  @{python=$api;node=$gateway}|ConvertTo-Json -Depth 3|Set-Content -LiteralPath $state -Encoding UTF8
- if(-not $NoWatchdog) {
-  $watchState=Join-Path $logs 'watchdog.json'
-  $alive=$false
-  if(Test-Path -LiteralPath $watchState){
-   try{$previous=Get-Content -LiteralPath $watchState -Raw|ConvertFrom-Json;$alive=Owned $previous}catch{}
-  }
-  if(-not $alive){
-   $watchScript=Join-Path $root 'scripts\watchdog.ps1'
-   $powershell=Join-Path $PSHOME 'powershell.exe'
-   $watch=Start-Process -FilePath $powershell -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+$watchScript+'"'),'-ProjectRoot',('"'+$root+'"')) -WorkingDirectory $root -WindowStyle Hidden -PassThru
-   @{pid=$watch.Id;path=$powershell;started=$watch.StartTime.ToUniversalTime().ToString('o')}|ConvertTo-Json|Set-Content -LiteralPath $watchState -Encoding UTF8
-  }
- }
+ Ensure-Watchdog
  Log 'SUCCESS: API and Node gateway healthy'
- if(-not $NoBrowser){Start-Process 'http://127.0.0.1:3000/'}
+ Open-Browser
  exit 0
 }catch{
  $message=$_.Exception.Message
  try{Log "ERROR: $message";Report $message}catch{Write-Host "ERROR: $message" -ForegroundColor Red}
  if($gateway){Stop-Owned $gateway}
  if($api){Stop-Owned $api}
- Remove-Item -LiteralPath $state -Force -ErrorAction SilentlyContinue
+ if($api -or $gateway){Remove-Item -LiteralPath $state -Force -ErrorAction SilentlyContinue}
  exit 1
+}finally{
+ if($lock){$lock.Dispose()}
 }

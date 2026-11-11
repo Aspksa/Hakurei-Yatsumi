@@ -11,13 +11,28 @@ function Owned($entry){
   return ($p.Path -ieq [string]$entry.path -and [Math]::Abs(($p.StartTime.ToUniversalTime()-[datetime]::Parse([string]$entry.started).ToUniversalTime()).TotalSeconds) -lt 3)
  }catch{return $false}
 }
-if(Test-Path -LiteralPath $watchState){
- try{$watch=Get-Content -LiteralPath $watchState -Raw -Encoding UTF8|ConvertFrom-Json;Remove-Item -LiteralPath $watchState -Force;if(Owned $watch){Stop-Process -Id ([int]$watch.pid) -Force -ErrorAction SilentlyContinue}}catch{Remove-Item -LiteralPath $watchState -Force -ErrorAction SilentlyContinue}
+$logs=Join-Path $root 'logs'
+if(-not (Test-Path -LiteralPath $logs)){Write-Host 'No managed services recorded';exit 0}
+try{$lock=[IO.File]::Open((Join-Path $logs 'launcher.lock'),'OpenOrCreate','ReadWrite','None')}
+catch [IO.IOException]{Write-Host 'Another launch or stop operation is running.';exit 1}
+try{
+ if(Test-Path -LiteralPath $watchState){
+  try{
+   $watch=Get-Content -LiteralPath $watchState -Raw -Encoding UTF8|ConvertFrom-Json
+   if(Owned $watch){Stop-Process -Id ([int]$watch.pid) -Force -ErrorAction SilentlyContinue}
+  }catch{Write-Host 'Watchdog state could not be read.'}
+  finally{Remove-Item -LiteralPath $watchState -Force -ErrorAction SilentlyContinue}
+ }
+ if(-not (Test-Path -LiteralPath $state)){Write-Host 'No managed services recorded';exit 0}
+ $saved=Get-Content -LiteralPath $state -Raw -Encoding UTF8|ConvertFrom-Json
+ foreach($entry in @($saved.node,$saved.python)){
+  if(Owned $entry){
+   & taskkill.exe /PID ([int]$entry.pid) /T /F
+   if($LASTEXITCODE -ne 0 -and (Owned $entry)){throw "Could not stop PID $($entry.pid)"}
+  }
+ }
+ Remove-Item -LiteralPath $state -Force
+ Write-Host 'Managed services stopped'
+}finally{
+ $lock.Dispose()
 }
-if(-not (Test-Path -LiteralPath $state)){Write-Host 'No managed services recorded';exit 0}
-$saved=Get-Content -LiteralPath $state -Raw -Encoding UTF8|ConvertFrom-Json
-foreach($entry in @($saved.node,$saved.python)){
- if(Owned $entry){Stop-Process -Id ([int]$entry.pid) -Force -ErrorAction Stop;Write-Host "Stopped PID $($entry.pid)"}
-}
-Remove-Item -LiteralPath $state -Force
-Write-Host 'Managed services stopped'

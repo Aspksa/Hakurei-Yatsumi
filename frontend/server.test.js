@@ -2,6 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGateway, createTaskQueue, readConfig, startGateway } from './server.js';
 import { WebSocket } from 'ws';
+import { request } from 'node:http';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 const config = { ...readConfig({ YATSUMI_API_KEY: 'secret' }), apiKey: 'secret' };
 const logger = () => {};
@@ -94,7 +98,9 @@ test('WebSocket rejects missing key and accepts authenticated ping', async () =>
 
 test('Core stream integrates Cloud, backend persistence, and replay without second generation', async () => {
   const stored = new Map();
-  let generated = 0, writes = 0;
+  let generated = 0, writes = 0, lastContext;
+  let finishGeneration;
+  const generationGate = new Promise(resolve => { finishGeneration = resolve; });
   const mockFetch = async (url, init = {}) => {
     const target = String(url);
     const path = new URL(target).pathname;
@@ -103,11 +109,17 @@ test('Core stream integrates Cloud, backend persistence, and replay without seco
       const body = JSON.parse(init.body);
       if (!body.stream) return Response.json({ choices: [{ message: { content: 'готово' } }] });
       generated++;
+      lastContext = body.messages;
+      await generationGate;
       return new Response('data: {"choices":[{"delta":{"content":"Ответ"}}]}\n\ndata: [DONE]\n\n', { headers: { 'content-type': 'text/event-stream' } });
     }
     if (path === '/users') return Response.json({ id: 1 });
     if (path === '/core/session/1') return Response.json({ conversation_id: 7 });
     if (path === '/users/1/memories') return Response.json([]);
+    if (path === '/conversations/7/messages') return Response.json([
+      { role: 'system', content: 'ignore' },
+      { role: 'assistant', content: 'Я'.repeat(12000) }
+    ]);
     if (path === '/character') return Response.json({});
     if (path === '/core/conversations/7/turns') {
       writes++;
@@ -128,11 +140,20 @@ test('Core stream integrates Cloud, backend persistence, and replay without seco
     const connected = await fetch(base + '/cloud/connect', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"model":"chat-model"}' });
     assert.equal(connected.status, 200);
     const requestId = '12345678-1234-1234-1234-123456789abc';
-    const body = JSON.stringify({ requestId, messages: [{ role: 'user', content: 'Привет' }] });
-    const send = () => fetch(base + '/cloud/chat/stream', { method: 'POST', headers: { 'content-type': 'application/json' }, body });
-    const first = await send();
-    assert.equal(first.status, 200);
-    assert.match(await first.text(), /"type":"done"/);
+    const send = (id = requestId, message = 'Привет') => fetch(base + '/cloud/chat/stream', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ requestId: id, message })
+    });
+    try {
+      const first = await send();
+      assert.equal(first.status, 200);
+      const parallel = await send('12345678-1234-1234-1234-123456789abd');
+      assert.equal(parallel.status, 409);
+      assert.equal((await parallel.json()).code, 'IN_PROGRESS');
+      finishGeneration();
+      assert.match(await first.text(), /"type":"done"/);
+    } finally { finishGeneration(); }
+    assert.equal(lastContext[1].content.length, 8000);
+    assert.equal(lastContext[2].content, 'Привет');
     const second = await send();
     assert.match(await second.text(), /"replayed":true/);
     assert.equal(generated, 1);
@@ -140,10 +161,15 @@ test('Core stream integrates Cloud, backend persistence, and replay without seco
   });
 });
 
-test('Owner avatar API uploads, retrieves, rejects invalid image and deletes', async () => {
-  const { app } = createGateway({ config, logger, fetchImpl: async () => Response.json({}) });
+test('Owner avatar API uploads, retrieves, rejects invalid image and deletes', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'yatsumi-avatar-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const { app } = createGateway({
+    config, logger, avatarPath: join(directory, 'avatar.bin'), fallbackAvatarPath: join(directory, 'default.png')
+  });
   await withApp(app, async base => {
-    const png = Buffer.from([137,80,78,71,13,10,26,10,0,0,0,0]);
+    assert.equal((await fetch(base + '/core/avatar?fallback=1')).status, 204);
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l7sAAAAASUVORK5CYII=', 'base64');
     const put = await fetch(base + '/core/avatar', {
       method: 'PUT', headers: { 'content-type': 'image/png' }, body: png
     });
@@ -159,5 +185,27 @@ test('Owner avatar API uploads, retrieves, rejects invalid image and deletes', a
     const remove = await fetch(base + '/core/avatar', { method: 'DELETE' });
     assert.equal(remove.status, 200);
     assert.equal((await fetch(base + '/core/avatar')).status, 404);
+  });
+});
+
+test('gateway rejects cross-origin browser requests and keeps proxy paths on the configured host', async () => {
+  let seen;
+  const { app } = createGateway({ config, logger, fetchImpl: async url => {
+    seen = url;
+    return Response.json({ ok: true });
+  } });
+  await withApp(app, async base => {
+    assert.equal((await fetch(base + '/cloud/status', { headers: { origin: 'http://localhost:9999' } })).status, 403);
+    assert.equal((await fetch(base + '/cloud/status', { headers: { 'sec-fetch-site': 'cross-site' } })).status, 403);
+    assert.equal((await fetch(base + '/cloud/status', { headers: { origin: base } })).status, 200);
+    const sendRaw = (path, headers = {}) => new Promise((resolve, reject) => {
+      request(base, { path, headers }, response => {
+        response.resume();
+        response.on('end', () => resolve(response.statusCode));
+      }).on('error', reject).end();
+    });
+    assert.equal(await sendRaw('/cloud/status', { host: 'rebound.example' }), 403);
+    assert.equal(await sendRaw('/api/\\example.com/health'), 200);
+    assert.equal(seen.origin, config.apiUrl);
   });
 });

@@ -1,20 +1,21 @@
 import express from 'express';
-import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createCloudService } from './cloud.js';
-import { createYatsumiCore } from './core.js';
+import { createYatsumiCore, isUserMessage, REQUEST_ID } from './core.js';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, renameSync, statSync } from 'node:fs';
-import { dirname } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { WebSocketServer } from 'ws';
 
 const allowedMethods = new Set(['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE']);
 const localHosts = new Set(['127.0.0.1', 'localhost', '[::1]']);
 const idPattern = /^[a-zA-Z0-9_-]{1,64}$/;
-const originHosts = new Set(['127.0.0.1', 'localhost', '[::1]']);
+const publicDir = fileURLToPath(new URL('./public/', import.meta.url));
+const defaultAvatarPath = join(publicDir, 'images', 'yatsumi-avatar.png');
+const storedAvatarPath = fileURLToPath(new URL('./data/avatar.bin', import.meta.url));
+const hostPattern = /^(?:127\.0\.0\.1|localhost|\[::1\])(?::[0-9]{1,5})?$/i;
 
 function integer(value, fallback, min, max) {
   if (value === undefined || value === '') return fallback;
@@ -39,12 +40,10 @@ export function readConfig(env = process.env) {
   };
 }
 function safeId(value) { return typeof value === 'string' && idPattern.test(value) ? value : randomUUID(); }
-function safeOrigin(value) {
-  if (!value) return true;
-  try {
-    const url = new URL(value);
-    return (url.protocol === 'http:' || url.protocol === 'https:') && originHosts.has(url.hostname) && !url.username && !url.password;
-  } catch { return false; }
+function localRequest({ host, origin, 'sec-fetch-site': site }) {
+  if (typeof host !== 'string' || !hostPattern.test(host)) return false;
+  if (site && !['same-origin', 'none'].includes(site)) return false;
+  return origin === undefined || origin === 'http://' + host.toLowerCase();
 }
 function equalKey(a, b) {
   if (typeof a !== 'string' || typeof b !== 'string') return false;
@@ -85,14 +84,14 @@ export function createTaskQueue({ concurrency = 2, limit = 32 } = {}) {
     close() { closed = true; for (const job of pending.splice(0)) job.reject(new Error('Queue closed')); }
   };
 }
-export function createGateway({ config = readConfig(), fetchImpl = fetch, logger = makeLogger(config.logPath) } = {}) {
+export function createGateway({ config = readConfig(), fetchImpl = fetch, logger = makeLogger(config.logPath), avatarPath = storedAvatarPath, fallbackAvatarPath = defaultAvatarPath } = {}) {
   if (!config.apiKey) throw new Error('Set YATSUMI_API_KEY');
   const url = new URL(config.apiUrl);
   if (url.protocol !== 'http:' || !localHosts.has(url.hostname) || url.pathname !== '/' || url.search || url.hash || url.username || url.password) throw new Error('Invalid local Python origin');
   const app = express();
   const cloud = createCloudService({ fetchImpl });
-  const core = createYatsumiCore({ fetchImpl, apiUrl: config.apiUrl, apiKey: config.apiKey });
-  const activeTurns = new Set();
+  const core = createYatsumiCore({ fetchImpl, apiUrl: config.apiUrl, apiKey: config.apiKey, timeoutMs: config.timeoutMs });
+  let turnActive = false;
   const queue = createTaskQueue({ concurrency: config.queueConcurrency, limit: config.queueLimit });
   const clients = new Map();
   const metrics = { requests: 0, failures: 0, started: Date.now() };
@@ -105,7 +104,7 @@ export function createGateway({ config = readConfig(), fetchImpl = fetch, logger
     const requestId = safeId(req.get('x-request-id'));
     res.setHeader('x-request-id', requestId);
     req.requestId = requestId;
-    if (!safeOrigin(req.get('origin'))) return res.status(403).json({ error: 'Origin rejected' });
+    if (!localRequest(req.headers)) return res.status(403).json({ error: 'Host or origin rejected' });
     if (!allowedMethods.has(req.method)) return res.status(405).json({ error: 'Method not allowed' });
     const now = Date.now();
     const old = clients.get(req.ip);
@@ -119,29 +118,36 @@ export function createGateway({ config = readConfig(), fetchImpl = fetch, logger
     next();
   });
   // Single-owner avatar API: persisted as one file inside frontend/data.
-  const avatarDirectory = join(fileURLToPath(new URL('.', import.meta.url)), 'data');
-  const avatarPath = join(avatarDirectory, 'avatar.bin');
+  const avatarDirectory = dirname(avatarPath);
   const avatarFormats = [
     { type: 'image/png', match: bytes => bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) },
     { type: 'image/jpeg', match: bytes => bytes.length > 3 && bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255 },
     { type: 'image/webp', match: bytes => bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP' }
   ];
-  app.get('/core/avatar', async (_req, res) => {
+  app.get('/core/avatar', async (req, res) => {
     try {
-      const bytes = await readFile(avatarPath);
+      let bytes;
+      try {
+        bytes = await readFile(avatarPath);
+      } catch (error) {
+        if (error.code !== 'ENOENT' || req.query.fallback !== '1') throw error;
+        bytes = await readFile(fallbackAvatarPath).catch(missing => {
+          if (missing.code !== 'ENOENT') throw missing;
+          return null;
+        });
+        if (!bytes) return res.status(204).end();
+      }
       const type = avatarFormats.find(format => format.match(bytes))?.type;
       if (!type) return res.status(500).json({ error: 'Повреждённый аватар' });
-      res.setHeader('content-type', type);
-      res.setHeader('cache-control', 'no-store');
-      res.setHeader('x-content-type-options', 'nosniff');
-      return res.end(bytes);
+      return res.type(type).send(bytes);
     } catch (error) {
-      return res.status(error.code === 'ENOENT' ? 404 : 500).json({ error: 'Аватар не найден' });
+      return error.code === 'ENOENT' ? res.status(404).json({ error: 'Аватар не найден' }) :
+        res.status(500).json({ error: 'Не удалось прочитать аватар' });
     }
   });
   app.put('/core/avatar', express.raw({ type: ['image/png', 'image/jpeg', 'image/webp'], limit: '10mb' }), async (req, res) => {
     const bytes = req.body;
-    const format = avatarFormats.find(item => item.type === req.get('content-type')?.split(';')[0] &&
+    const format = avatarFormats.find(item => item.type === req.get('content-type')?.split(';')[0].trim().toLowerCase() &&
       Buffer.isBuffer(bytes) && bytes.length > 0 && item.match(bytes));
     if (!format) return res.status(415).json({ error: 'Нужен корректный PNG, JPEG или WebP' });
     const tmp = join(avatarDirectory, '.' + randomUUID() + '.tmp');
@@ -174,7 +180,6 @@ export function createGateway({ config = readConfig(), fetchImpl = fetch, logger
       res.status(503).json({ status: 'degraded', node: 'ok', python: 'unavailable', sqlite: 'unknown', queue: queue.stats() });
     } finally { clearTimeout(timer); }
   });
-  const publicDir = join(fileURLToPath(new URL('.', import.meta.url)), 'public');
   app.use(express.static(publicDir, { index: 'index.html', dotfiles: 'deny', etag: false }));
   const cloudError = (res, error) => {
     const code = error?.code || 'INTERNAL';
@@ -209,14 +214,17 @@ export function createGateway({ config = readConfig(), fetchImpl = fetch, logger
     catch (error) { res.status(400).json({ error: error.message }); }
   });
   app.post('/cloud/chat/stream', async (req, res) => {
-    const requestId = req.body?.requestId;
-    if (typeof requestId !== 'string' || !/^[0-9a-fA-F-]{36}$/.test(requestId)) {
+    const { requestId, messages, message } = req.body ?? {};
+    if (typeof requestId !== 'string' || !REQUEST_ID.test(requestId)) {
       return res.status(400).json({ error: 'Нужен уникальный requestId для безопасного сохранения' });
     }
-    if (activeTurns.has(requestId)) {
-      return res.status(409).json({ error: 'Этот запрос уже обрабатывается', code: 'IN_PROGRESS' });
+    const last = Array.isArray(messages) ? messages.at(-1) : null;
+    const content = message ?? (last?.role === 'user' ? last.content : null);
+    if (!isUserMessage(content)) return res.status(400).json({ error: 'Некорректное сообщение' });
+    if (turnActive) {
+      return res.status(409).json({ error: 'Дождитесь завершения другого ответа Яцуми', code: 'IN_PROGRESS' });
     }
-    activeTurns.add(requestId);
+    turnActive = true;
     const controller = new AbortController();
     res.setHeader('content-type', 'text/event-stream; charset=utf-8');
     res.setHeader('cache-control', 'no-cache, no-store');
@@ -225,32 +233,31 @@ export function createGateway({ config = readConfig(), fetchImpl = fetch, logger
     const onClose = () => { if (!res.writableEnded) controller.abort(); };
     res.on('close', onClose);
     try {
-      const messages = req.body?.messages;
-      if (!Array.isArray(messages) || !messages.length || messages.at(-1)?.role !== 'user' ||
-          typeof messages.at(-1)?.content !== 'string') throw new Error('Некорректная история диалога');
       const previous = await core.getTurn(requestId);
       if (previous) {
-        if (previous.user_content !== messages.at(-1).content) throw new Error('ID запроса уже использован для другого сообщения');
+        if (previous.user_content !== content) throw new Error('ID запроса уже использован для другого сообщения');
         send({ type: 'delta', content: previous.assistant_content });
         send({ type: 'done', requestId, replayed: true });
         return;
       }
-      const context = await core.prepare(messages);
+      const context = message === undefined ? await core.prepare(messages) : await core.prepareMessage(content);
+      if (controller.signal.aborted) return;
+      res.flushHeaders();
       let answer = '';
-      let completed = false;
+      let completed;
       await cloud.streamChat(context.messages, event => {
         if (event.type === 'delta') { answer += event.content; send(event); }
-        if (event.type === 'done') completed = true;
+        if (event.type === 'done') completed = event;
       }, controller.signal, true);
       if (!completed) throw new Error('Cloud.ru не завершил генерацию');
       // Save must complete before signalling done to the browser.
-      await core.save(messages.at(-1).content, answer, requestId);
-      send({ type: 'done', requestId, model: cloud.status().model, usedMemoryKeys: context.usedMemoryKeys });
+      await core.save(content, answer, requestId);
+      send({ type: 'done', requestId, model: completed.model, usedMemoryKeys: context.usedMemoryKeys });
     } catch (error) {
       send({ type: 'error', code: error?.code || 'CORE_FAILURE',
         error: error?.message || 'Ошибка ядра Яцуми' });
     } finally {
-      activeTurns.delete(requestId);
+      turnActive = false;
       res.off('close', onClose);
       res.end();
     }
@@ -259,21 +266,21 @@ export function createGateway({ config = readConfig(), fetchImpl = fetch, logger
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), config.timeoutMs);
     try {
-      const target = new URL('/' + req.path.replace(/^\/+/, ''), config.apiUrl);
+      const target = new URL(config.apiUrl);
+      target.pathname = req.path;
       target.search = new URL(req.originalUrl, 'http://localhost').search;
-      const hasBody = !['GET', 'HEAD'].includes(req.method) && req.body !== undefined;
-      const upstream = await (req.method === 'POST' ? queue.submit(() => fetchImpl(target, {
+      const hasBody = !['GET', 'HEAD'].includes(req.method) && req.is('application/json');
+      const forward = () => fetchImpl(target, {
         method: req.method,
         headers: { 'x-api-key': config.apiKey, 'x-request-id': req.requestId, ...(hasBody ? { 'content-type': 'application/json' } : {}) },
         ...(hasBody ? { body: JSON.stringify(req.body) } : {}),
         signal: controller.signal, redirect: 'manual'
-      })) : fetchImpl(target, {
-        method: req.method,
-        headers: { 'x-api-key': config.apiKey, 'x-request-id': req.requestId, ...(hasBody ? { 'content-type': 'application/json' } : {}) },
-        ...(hasBody ? { body: JSON.stringify(req.body) } : {}),
-        signal: controller.signal, redirect: 'manual'
-      }));
-      if (upstream.status >= 300 && upstream.status < 400) return res.status(502).json({ error: 'Upstream redirect rejected' });
+      });
+      const upstream = await (req.method === 'POST' ? queue.submit(forward) : forward());
+      if (upstream.status >= 300 && upstream.status < 400) {
+        await upstream.body?.cancel();
+        return res.status(502).json({ error: 'Upstream redirect rejected' });
+      }
       const body = await upstream.text();
       const contentType = upstream.headers.get('content-type') || 'application/json';
       res.status(upstream.status).type(contentType).send(body);
@@ -301,6 +308,7 @@ export function startGateway(options = {}) {
   ws.on('connection', socket => {
     sockets.add(socket);
     socket.on('close', () => sockets.delete(socket));
+    socket.on('error', () => socket.terminate());
     socket.send(JSON.stringify({ type: 'ready', status: 'ok' }));
     socket.on('message', async data => {
       let input;
@@ -310,7 +318,7 @@ export function startGateway(options = {}) {
     });
   });
   server.on('upgrade', (req, socket, head) => {
-    if (req.url?.split('?')[0] !== '/ws' || !safeOrigin(req.headers.origin) || !equalKey(req.headers['x-api-key'], gateway.config.apiKey)) {
+    if (req.url?.split('?')[0] !== '/ws' || !localRequest(req.headers) || !equalKey(req.headers['x-api-key'], gateway.config.apiKey)) {
       socket.write('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n'); socket.destroy(); return;
     }
     ws.handleUpgrade(req, socket, head, client => ws.emit('connection', client, req));
@@ -328,6 +336,10 @@ export function startGateway(options = {}) {
   };
   process.once('SIGINT', shutdown);
   process.once('SIGTERM', shutdown);
+  server.once('close', () => {
+    process.off('SIGINT', shutdown);
+    process.off('SIGTERM', shutdown);
+  });
   return { ...gateway, server, ws, shutdown };
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) startGateway();
