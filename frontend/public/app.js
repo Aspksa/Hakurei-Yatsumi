@@ -240,3 +240,23 @@ $('message').addEventListener('keydown', event => { if (event.key === 'Enter' &&
     if (avatar.style.left) moveTo(parseFloat(avatar.style.left), parseFloat(avatar.style.top));
   });
 })();
+
+
+// Refit manually resized chat when Windows scaling, browser zoom or window size changes.
+(() => {
+  const chat = $('conversation');
+  const main = document.querySelector('.main');
+  if (!chat || !main) return;
+  function fitChat() {
+    const bounds = main.getBoundingClientRect();
+    const style = getComputedStyle(main);
+    const availableWidth = Math.max(0, bounds.width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight));
+    const availableHeight = Math.max(0, bounds.height - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom));
+    if (chat.offsetWidth > availableWidth && availableWidth > 0) chat.style.width = availableWidth + 'px';
+    if (chat.offsetHeight > availableHeight && availableHeight > 0) chat.style.height = availableHeight + 'px';
+  }
+  window.addEventListener('resize', fitChat);
+  window.visualViewport?.addEventListener('resize', fitChat);
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(fitChat).observe(main);
+  fitChat();
+})();
