@@ -185,8 +185,34 @@ test('home: clock, date and today in the production calendar', async () => {
   const today = page.locator('.cal-day.is-today');
   assert.equal(await today.getAttribute('data-key'), '2026-11-04');
   assert.match(await today.getAttribute('class'), /k-holiday/);
-  assert.match(await page.textContent('#calStats'), /рабочих дней 20, выходных и праздничных 10, норма 159 ч/);
-  assert.match(await page.textContent('#calStats'), /2026 год: рабочих 247, выходных 118, норма 1972 ч/);
+  const stat = k => page.textContent(`.stat[data-k="${k}"] b`);
+  assert.deepEqual([await stat('work'), await stat('off'), await stat('hours')], ['20', '10', '159']);
+  assert.match(await page.textContent('.year-line'), /2026 год: рабочих 247, выходных 118, норма 1972 ч/);
+  await context.close();
+});
+
+test('home: analog dial hands show the current time', async () => {
+  const { page, context } = await openPage({ time: NOW });
+  await page.waitForTimeout(300);
+  const angle = id => page.getAttribute('#' + id, 'transform').then(v => Number(/rotate\(([\d.]+)/.exec(v)[1]));
+  const near = (actual, expected, tolerance) => assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} is not within ${tolerance} of ${expected}`);
+  near(await angle('handHour'), 307.75, 2);   // 10:15:30 → (10 + 15.5/60) × 30°
+  near(await angle('handMin'), 93, 3);        // 15.5 мин × 6°
+  const sec = await angle('handSec');
+  assert.ok(sec >= 180 && sec < 360, 'second hand moves with the seconds');
+  assert.equal(await page.locator('#dialTicks line').count(), 60);
+  await context.close();
+});
+
+test('home: calendar shows ISO week numbers and weekly norm hours; month strip jumps to a month', async () => {
+  const { page, context } = await openPage({ time: NOW });
+  const rows = await page.locator('.cal-grid .wk:not(.cal-head)').allTextContents();
+  assert.deepEqual(rows, ['44', '45', '46', '47', '48', '49']);
+  // Неделя 2–8 ноября: пн 8 + вт 7 (сокращённый) + ср 0 (праздник) + чт 8 + пт 8 = 31 ч.
+  assert.deepEqual(await page.locator('.cal-grid .wk-h:not(.cal-head)').allTextContents(), ['40', '31', '40', '40', '40', '40']);
+  await page.click('#calMonths [data-month="2"]');
+  assert.equal(await page.textContent('#calMonth'), 'Март 2026');
+  assert.equal(await page.getAttribute('#calMonths [data-month="2"]', 'aria-pressed'), 'true');
   await context.close();
 });
 
@@ -201,7 +227,8 @@ test('home: 2027 calendar shows the working Saturday, transfers and month norm',
   assert.match(saturday, /k-extra-work/);
   assert.match(saturday, /is-short/);
   assert.match(await page.getAttribute('.cal-day[data-key="2027-02-22"]', 'class'), /k-transfer/);
-  assert.match(await page.textContent('#calStats'), /рабочих дней 19, выходных и праздничных 9, норма 151 ч/);
+  const stat = k => page.textContent(`.stat[data-k="${k}"] b`);
+  assert.deepEqual([await stat('work'), await stat('off'), await stat('hours')], ['19', '9', '151']);
   await page.click('#calToday');
   assert.equal(await page.textContent('#calMonth'), 'Ноябрь 2026');
   await context.close();
@@ -259,8 +286,34 @@ test('home: tasks are grouped by due date and quick date chips fill the date', a
   await page.fill('#taskText', 'Когда-нибудь'); await page.click('#taskAdd');
   await taskCount(page, 5);
   assert.deepEqual(await page.locator('.task-group span').allTextContents(), ['Просрочено', 'Сегодня', 'Завтра', 'Позже', 'Без срока']);
-  assert.equal(await page.locator('.task-date.is-late').count(), 1);
+  assert.equal(await page.locator('.tile.is-late').count(), 1);
   assert.equal(await page.inputValue('#taskDate'), '', 'date is cleared after adding');
+  await context.close();
+});
+
+test('home: priorities sort tasks first and tabs split today from upcoming', async () => {
+  const { page, context } = await openPage({ time: NOW });
+  const add = async (text, chip, prio) => {
+    await page.fill('#taskText', text);
+    if (chip !== null) await page.click(`#dateChips [data-d="${chip}"]`);
+    if (prio) await page.click(`#prioPick [data-p="${prio}"]`);
+    await page.click('#taskAdd');
+  };
+  await add('Обычное', 0, 0);
+  await add('Срочное', 0, 2);
+  await add('Важное', 0, 1);
+  await add('На завтра', 1, 0);
+  await taskCount(page, 4);
+  assert.deepEqual(await page.locator('.task-text').allTextContents(), ['Срочное', 'Важное', 'Обычное', 'На завтра']);
+  assert.deepEqual(await page.locator('.tag').allTextContents(), ['Срочно', 'Важно']);
+  assert.equal(await page.getAttribute('#prioPick [data-p="0"]', 'aria-pressed'), 'true', 'priority resets after adding');
+  const counts = async () => page.locator('#taskFilter em').allTextContents();
+  assert.deepEqual(await counts(), ['4', '3', '1', '0']);
+  await page.click('#taskFilter [data-v="today"]');
+  await taskCount(page, 3);
+  await page.click('#taskFilter [data-v="soon"]');
+  await taskCount(page, 1);
+  assert.equal(await page.textContent('.task-text'), 'На завтра');
   await context.close();
 });
 
