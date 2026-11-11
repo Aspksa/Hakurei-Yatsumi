@@ -76,9 +76,12 @@ body:has(#yatsumiAvatar[hidden]) #chatClose{display:none}
 /* ---------- чат ---------- */
 .conversation{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:14px;padding:4px 4px 18px;outline-offset:-2px}
 .conversation>:first-child{margin-top:auto}
-.bubble{flex:none;max-width:88%;padding:.72em 1.05em;white-space:pre-wrap;overflow-wrap:anywhere;border-radius:var(--r-bubble)}
-.bubble.assistant{align-self:flex-start;background:var(--ink);border:1px solid var(--line);border-bottom-left-radius:min(5px,var(--r-bubble));color:var(--text)}
-.bubble.user{align-self:flex-end;background:linear-gradient(160deg,#f6e19a 0%,#d4af37 55%,#b48a25 100%);color:var(--on-gold);font-weight:500;border-bottom-right-radius:min(5px,var(--r-bubble))}
+.msg{flex:none;max-width:88%;display:flex;flex-direction:column;gap:3px}
+.msg.assistant{align-self:flex-start}
+.msg.user{align-self:flex-end;align-items:flex-end}
+.bubble{flex:none;padding:.72em 1.05em;white-space:pre-wrap;overflow-wrap:anywhere;border-radius:var(--r-bubble)}
+.bubble.assistant{background:var(--ink);border:1px solid var(--line);border-bottom-left-radius:min(5px,var(--r-bubble));color:var(--text)}
+.bubble.user{background:linear-gradient(160deg,var(--gold-light) 0%,var(--gold) 55%,color-mix(in srgb,var(--gold) 78%,var(--gold-deep)) 100%);color:var(--on-gold);font-weight:500;border-bottom-right-radius:min(5px,var(--r-bubble))}
 .composer{flex:none;display:flex;align-items:center;gap:10px;padding:8px 8px 8px 22px;background:var(--ink);border:1px solid var(--line-strong);border-radius:var(--r-btn);transition:border-color .15s,box-shadow .15s}
 .composer:focus-within{border-color:var(--gold);box-shadow:0 0 0 4px color-mix(in srgb,var(--gold) 12%,transparent)}
 .composer textarea{flex:1;min-width:0;min-height:1.6em;max-height:140px;padding:0;border:0;outline:0;resize:none;background:none;color:var(--gold-pale);font-size:16px;line-height:1.6;white-space:pre-wrap}
@@ -145,7 +148,7 @@ html[data-av-frame="cover"] .yatsumi-avatar{border:1px solid var(--gold-deep);bo
 /* ---------- адаптивность ---------- */
 @media(max-width:600px){
   .chat{top:104px;left:8px;right:8px;bottom:8px;width:auto;height:auto;transform:none;border-radius:var(--r-box);animation:none!important}
-  .bubble{max-width:92%}
+  .msg{max-width:92%}
   .composer{padding-left:18px}
   .yatsumi-avatar{width:min(var(--av-size),120px);top:8px;left:10px;right:auto;bottom:auto}
   .avatar-row{flex-direction:column}
@@ -210,3 +213,30 @@ button.connection:hover{color:var(--gold-light)}
 html[data-av="off"] .yatsumi-avatar{display:none}
 html[data-av="off"] .chat{display:flex}
 html[data-av="off"] #chatClose{display:none}
+
+/* ---------- действия под сообщениями ---------- */
+.msg-actions{display:flex;gap:2px 14px;flex-wrap:wrap;padding:0 6px;opacity:.55;transition:opacity .15s}
+.msg:hover .msg-actions,.msg:focus-within .msg-actions,.msg:last-child .msg-actions{opacity:1}
+.msg-actions button{border:0;background:none;padding:.25em 0;color:var(--muted);font-size:.78rem;text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:3px}
+.msg-actions button:hover:not(:disabled){color:var(--gold-light);text-decoration-color:var(--gold)}
+.msg:has(.typing) .msg-actions{display:none}
+.msg.assistant:not(:last-child) [data-act="retry"]{display:none}
+@media(pointer:coarse){.msg-actions button{padding:.6em 0}}
+
+/* ---------- готовые темы ---------- */
+.presets{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
+.preset{display:flex;align-items:center;gap:10px;padding:.6em .8em;border:1px solid var(--line-strong);border-radius:var(--r-field);background:var(--ink);color:var(--text);font-weight:600;font-size:.88rem;text-align:left}
+.preset i{flex:none;width:16px;height:16px;border-radius:var(--r-round);background:var(--sw)}
+.preset:hover{border-color:var(--gold)}
+.preset[aria-pressed="true"]{border-color:var(--gold);background:var(--ink-raised);box-shadow:0 0 0 1px var(--gold)}
+
+/* ---------- анимация аватара ---------- */
+@media(prefers-reduced-motion:no-preference){
+  html[data-av-anim="float"] .yatsumi-avatar img{animation:av-float 4.5s ease-in-out infinite}
+  html[data-av-anim="breathe"] .yatsumi-avatar img{animation:av-breathe 4s ease-in-out infinite}
+  .yatsumi-avatar.is-busy img{animation:av-think 1.3s ease-in-out infinite!important}
+  .yatsumi-avatar.is-dragging img{animation-play-state:paused!important}
+  @keyframes av-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+  @keyframes av-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.035)}}
+  @keyframes av-think{0%,100%{transform:scale(1);filter:brightness(1)}50%{transform:scale(1.045);filter:brightness(1.18)}}
+}

@@ -104,11 +104,14 @@
         <div class="setting"><label for="avSize">Размер</label><div class="range-row"><input type="range" id="avSize" min="70" max="360" step="10"><output id="avSizeOut"></output></div></div>
         <div class="setting"><span class="label">Форма</span><div class="segmented" id="avShape" role="group" aria-label="Форма аватара"><button type="button" data-v="free">Как есть</button><button type="button" data-v="square">Квадрат</button><button type="button" data-v="rounded">Скруглённый</button><button type="button" data-v="circle">Круг</button></div></div>
         <label class="toggle"><span>Свечение</span><input type="checkbox" id="avGlow"></label>
+        <div class="setting"><span class="label">Анимация</span><div class="segmented" id="avAnim" role="group" aria-label="Анимация аватара"><button type="button" data-v="off">Нет</button><button type="button" data-v="float">Парение</button><button type="button" data-v="breathe">Дыхание</button></div></div>
+        <label class="toggle"><span>Прилипать к краям экрана</span><input type="checkbox" id="avSnap"></label>
         <div class="row-actions"><button class="secondary" id="avResetPos" type="button">Вернуть на место</button><button class="link-button" id="avResetAll" type="button">Сбросить настройки аватара</button></div>
       </section>
 
       <section class="group" data-tab="look" hidden>
         <div class="group-head"><h3>Оформление</h3></div>
+        <div class="setting"><span class="label">Готовые темы</span><div class="presets" id="presets" role="group" aria-label="Готовые темы"></div></div>
         <div class="setting"><span class="label">Цвет акцента</span><div class="swatches" id="accentSwatches" role="group" aria-label="Цвет акцента"></div></div>
         <div class="setting"><span class="label">Фон</span><div class="segmented" id="bgMode" role="group" aria-label="Фон"><button type="button" data-v="black">Чёрный</button><button type="button" data-v="graphite">Графит</button><button type="button" data-v="midnight">Ночной</button></div></div>
         <div class="setting"><span class="label">Форма кнопок и окон</span><div class="segmented" id="shapeMode" role="group" aria-label="Форма кнопок"><button type="button" data-v="straight">Прямые</button><button type="button" data-v="soft">Мягкие</button><button type="button" data-v="round">Круглые</button></div></div>
