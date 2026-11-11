@@ -45,7 +45,13 @@ export function createYatsumiCore({ fetchImpl = fetch, apiUrl, apiKey }) {
   }
   let conversationId = null;
   let userId = null;
+  let initializing = null;
   async function initialize() {
+    if (initializing) return initializing;
+    initializing = initializeOnce();
+    try { await initializing; } finally { initializing = null; }
+  }
+  async function initializeOnce() {
     if (conversationId) return;
     const user = await backend('/users', { method: 'POST', body: JSON.stringify({ external_id: 'local-owner', display_name: 'Владелец' }) });
     userId = user.id;
@@ -63,11 +69,24 @@ export function createYatsumiCore({ fetchImpl = fetch, apiUrl, apiKey }) {
     ]);
     return buildContext({ messages, memories, character });
   }
-  async function save(userMessage, assistantMessage) {
+  async function getTurn(requestId) {
     await initialize();
-    for (const [role, content] of [['user', userMessage], ['assistant', assistantMessage]]) {
-      await backend('/conversations/' + conversationId + '/messages', { method: 'POST', body: JSON.stringify({ role, content }) });
-    }
+    if (typeof requestId !== 'string' || !/^[0-9a-fA-F-]{36}$/.test(requestId)) throw new Error('Некорректный ID запроса');
+    const response = await fetchImpl(new URL('/core/conversations/' + conversationId + '/turns/' + requestId, apiUrl), {
+      headers: { 'x-api-key': apiKey }, redirect: 'manual'
+    });
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error('Не удалось проверить сохранённый ответ: HTTP ' + response.status);
+    return response.json();
+  }
+  async function save(userMessage, assistantMessage, requestId) {
+    await initialize();
+    if (typeof requestId !== 'string' || !/^[0-9a-fA-F-]{36}$/.test(requestId)) throw new Error('Некорректный ID запроса');
+    if (typeof userMessage !== 'string' || !userMessage.trim() || userMessage.length > 8000 ||
+        typeof assistantMessage !== 'string' || !assistantMessage.trim() || assistantMessage.length > 200000) throw new Error('Некорректное сообщение');
+    return backend('/core/conversations/' + conversationId + '/turns', {
+      method: 'POST', body: JSON.stringify({ request_id: requestId, user_content: userMessage, assistant_content: assistantMessage })
+    });
   }
   async function history() {
     await initialize();
@@ -78,5 +97,5 @@ export function createYatsumiCore({ fetchImpl = fetch, apiUrl, apiKey }) {
     if (typeof key !== 'string' || !key.trim() || key.length > 128 || typeof value !== 'string' || value.length > 10000) throw new Error('Некорректная заметка');
     return backend('/memories', { method: 'PUT', body: JSON.stringify({ user_id: userId, key, value }) });
   }
-  return { prepare, save, history, remember };
+  return { prepare, save, getTurn, history, remember };
 }
