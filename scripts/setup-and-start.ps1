@@ -1,6 +1,7 @@
 param(
  [Parameter(Mandatory=$true)][string]$ProjectRoot,
  [switch]$NoBrowser,
+ [switch]$Tray,
  [switch]$Offline,
  [switch]$Diagnostics,
  [switch]$NoWatchdog
@@ -156,7 +157,36 @@ function Wait-Health([string]$url,[object]$entry) {
  }
  throw "Service not healthy after 40 seconds: $url"
 }
-function Open-Browser {
+function Read-TrayState([string]$path) {
+ try{Get-Content -LiteralPath $path -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json}
+ catch{return $null}
+}
+function Ensure-Tray {
+ $trayState=Join-Path $logs 'tray.json'
+ if(Owned (Read-TrayState $trayState)){return}
+
+ $trayScript=Join-Path $root 'scripts\tray.ps1'
+ $powershell=Join-Path $PSHOME 'powershell.exe'
+ $rootArgument=Join-Path $root '.'
+ $arguments="-NoProfile -STA -ExecutionPolicy Bypass -File `"$trayScript`" -ProjectRoot `"$rootArgument`""
+ $entry=Launch $powershell $arguments $root 'tray'
+ for($i=0;$i -lt 100;$i++){
+  $ready=Read-TrayState $trayState
+  if($ready.pid -eq $entry.pid -and (Owned $ready)){return}
+  if(-not (Owned $entry)){break}
+  Start-Sleep -Milliseconds 100
+ }
+ Stop-Owned $entry
+ throw 'Tray did not initialize. See logs/tray.stderr.log.'
+}
+function Open-Interface {
+ if($Tray){
+  try{
+   Ensure-Tray
+   Log 'Yatsumi is available in the Windows notification area.'
+   return
+  }catch{Log "Tray startup failed: $($_.Exception.Message)"}
+ }
  if(-not $NoBrowser){
   try{Start-Process 'http://127.0.0.1:3000/'}
   catch{Log 'Could not open the browser. Visit http://127.0.0.1:3000/.'}
@@ -221,7 +251,7 @@ try {
    if($ownsApi -and $ownsGateway -and (Health 'http://127.0.0.1:8000/health') -and (Health 'http://127.0.0.1:3000/gateway/health')){
     Log 'Already running; no duplicate services started'
     Ensure-Watchdog
-    Open-Browser
+    Open-Interface
     exit 0
    }
    Log "Recovering service state (Python PID $($saved.python.pid), owned=$ownsApi; Node PID $($saved.node.pid), owned=$ownsGateway)"
@@ -279,7 +309,7 @@ try {
  @{python=$api;node=$gateway}|ConvertTo-Json -Depth 3|Set-Content -LiteralPath $state -Encoding UTF8
  Ensure-Watchdog
  Log 'SUCCESS: API and Node gateway healthy'
- Open-Browser
+ Open-Interface
  exit 0
 }catch{
  $message=$_.Exception.Message
