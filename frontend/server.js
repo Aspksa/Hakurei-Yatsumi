@@ -91,6 +91,7 @@ export function createGateway({ config = readConfig(), fetchImpl = fetch, logger
   const app = express();
   const cloud = createCloudService({ fetchImpl });
   const core = createYatsumiCore({ fetchImpl, apiUrl: config.apiUrl, apiKey: config.apiKey });
+  const activeTurns = new Set();
   const queue = createTaskQueue({ concurrency: config.queueConcurrency, limit: config.queueLimit });
   const clients = new Map();
   const metrics = { requests: 0, failures: 0, started: Date.now() };
@@ -165,15 +166,32 @@ export function createGateway({ config = readConfig(), fetchImpl = fetch, logger
     catch (error) { res.status(400).json({ error: error.message }); }
   });
   app.post('/cloud/chat/stream', async (req, res) => {
+    const requestId = req.body?.requestId;
+    if (typeof requestId !== 'string' || !/^[0-9a-fA-F-]{36}$/.test(requestId)) {
+      return res.status(400).json({ error: 'Нужен уникальный requestId для безопасного сохранения' });
+    }
+    if (activeTurns.has(requestId)) {
+      return res.status(409).json({ error: 'Этот запрос уже обрабатывается', code: 'IN_PROGRESS' });
+    }
+    activeTurns.add(requestId);
     const controller = new AbortController();
     res.setHeader('content-type', 'text/event-stream; charset=utf-8');
     res.setHeader('cache-control', 'no-cache, no-store');
     res.setHeader('x-accel-buffering', 'no');
-    const send = value => { if (!res.destroyed) res.write('data: ' + JSON.stringify(value) + '\n\n'); };
+    const send = value => { if (!res.destroyed && !res.writableEnded) res.write('data: ' + JSON.stringify(value) + '\n\n'); };
     const onClose = () => { if (!res.writableEnded) controller.abort(); };
     res.on('close', onClose);
     try {
       const messages = req.body?.messages;
+      if (!Array.isArray(messages) || !messages.length || messages.at(-1)?.role !== 'user' ||
+          typeof messages.at(-1)?.content !== 'string') throw new Error('Некорректная история диалога');
+      const previous = await core.getTurn(requestId);
+      if (previous) {
+        if (previous.user_content !== messages.at(-1).content) throw new Error('ID запроса уже использован для другого сообщения');
+        send({ type: 'delta', content: previous.assistant_content });
+        send({ type: 'done', requestId, replayed: true });
+        return;
+      }
       const context = await core.prepare(messages);
       let answer = '';
       let completed = false;
@@ -181,17 +199,18 @@ export function createGateway({ config = readConfig(), fetchImpl = fetch, logger
         if (event.type === 'delta') { answer += event.content; send(event); }
         if (event.type === 'done') completed = true;
       }, controller.signal, true);
-      if (completed) {
-        try {
-          await core.save(messages.at(-1).content, answer);
-          send({ type: 'done', model: cloud.status().model, usedMemoryKeys: context.usedMemoryKeys });
-        } catch (error) {
-          send({ type: 'error', code: 'SAVE_FAILED', error: 'Ответ получен, но не удалось сохранить диалог в SQLite' });
-        }
-      }
+      if (!completed) throw new Error('Cloud.ru не завершил генерацию');
+      // Save must complete before signalling done to the browser.
+      await core.save(messages.at(-1).content, answer, requestId);
+      send({ type: 'done', requestId, model: cloud.status().model, usedMemoryKeys: context.usedMemoryKeys });
     } catch (error) {
-      send({ type: 'error', code: error?.code || 'STREAM', error: error?.message || 'Ошибка Cloud.ru' });
-    } finally { res.off('close', onClose); res.end(); }
+      send({ type: 'error', code: error?.code || 'CORE_FAILURE',
+        error: error?.message || 'Ошибка ядра Яцуми' });
+    } finally {
+      activeTurns.delete(requestId);
+      res.off('close', onClose);
+      res.end();
+    }
   });
   app.use('/api', async (req, res) => {
     const controller = new AbortController();
