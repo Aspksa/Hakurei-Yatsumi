@@ -130,23 +130,29 @@ export function createGateway({ config = readConfig(), fetchImpl = fetch, logger
   });
   const publicDir = join(fileURLToPath(new URL('.', import.meta.url)), 'public');
   app.use(express.static(publicDir, { index: 'index.html', dotfiles: 'deny', etag: false }));
+  const cloudError = (res, error) => {
+    const code = error?.code || 'INTERNAL';
+    const status = Number.isInteger(error?.httpStatus) && error.httpStatus >= 400 && error.httpStatus <= 599 ? error.httpStatus : 502;
+    if (error?.retryAfter !== null && Number.isFinite(error?.retryAfter)) res.setHeader('retry-after', String(Math.ceil(error.retryAfter)));
+    res.status(status).json({ error: error?.message || 'Ошибка Cloud.ru', code, status });
+  };
   app.get('/cloud/status', (req, res) => res.json(cloud.status()));
   app.post('/cloud/key', (req, res) => {
     try { res.json(cloud.setKey(req.body?.key)); }
-    catch (error) { res.status(400).json({ error: error.message }); }
+    catch (error) { cloudError(res, error); }
   });
   app.delete('/cloud/key', (req, res) => res.json(cloud.clear()));
   app.get('/cloud/models', async (req, res) => {
     try { res.json({ models: await cloud.listModels() }); }
-    catch (error) { res.status(502).json({ error: error.message }); }
+    catch (error) { cloudError(res, error); }
   });
   app.post('/cloud/connect', async (req, res) => {
     try { res.json(await cloud.connect(req.body?.model)); }
-    catch (error) { res.status(400).json({ error: error.message }); }
+    catch (error) { cloudError(res, error); }
   });
   app.post('/cloud/chat', async (req, res) => {
     try { res.json(await cloud.chat(req.body?.messages)); }
-    catch (error) { res.status(502).json({ error: error.message }); }
+    catch (error) { cloudError(res, error); }
   });
   app.use('/api', async (req, res) => {
     const controller = new AbortController();
