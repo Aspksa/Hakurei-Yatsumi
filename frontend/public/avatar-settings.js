@@ -1,6 +1,4 @@
 const $ = id => document.getElementById(id);
-const avatar = $('yatsumiAvatar');
-const image = avatar.querySelector('img');
 const preview = $('avatarPreview');
 const hero = $('heroAvatar');
 const placeholder = $('avatarPreviewEmpty');
@@ -18,9 +16,9 @@ function setBusy(busy) {
 function showImage(url) {
   if (objectUrl) URL.revokeObjectURL(objectUrl);
   objectUrl = url;
-  avatar.hidden = preview.hidden = hero.hidden = !url;
+  preview.hidden = hero.hidden = !url;
   placeholder.hidden = Boolean(url);
-  for (const element of [image, preview, hero]) {
+  for (const element of [preview, hero]) {
     if (url) element.src = url;
     else element.removeAttribute('src');
   }

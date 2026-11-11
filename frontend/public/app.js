@@ -34,10 +34,6 @@ function chatNotice(text) {
   $('chatNotice').textContent = text;
   $('chatNotice').hidden = !text;
 }
-function showChat() {
-  $('welcome').hidden = true;
-  conversation.hidden = false;
-}
 function openSettings() {
   if (!overlay.open) overlay.showModal();
 }
@@ -78,7 +74,6 @@ async function configure(work) {
   finally { configuring = false; updateControls(); }
 }
 $('settingsOpen').addEventListener('click', openSettings);
-$('setupStart').addEventListener('click', openSettings);
 $('settingsClose').addEventListener('click', closeSettings);
 $('settingsCloseBackdrop').addEventListener('click', closeSettings);
 $('toggleKey').addEventListener('click', () => {
@@ -104,7 +99,6 @@ $('connectModel').addEventListener('click', () => configure(async () => {
   try { localStorage.setItem('yatsumi-cloud-model', state.model || ''); } catch {}
   notice('Модель подключена. Можно начать диалог.');
   if (overlay.open) closeSettings();
-  showChat();
   message.focus();
 }));
 $('forgetKey').addEventListener('click', () => configure(async () => {
@@ -181,7 +175,6 @@ $('chatForm').addEventListener('submit', async event => {
   sending = true;
   updateControls();
   chatNotice('');
-  showChat();
   message.value = '';
   const userBubble = bubble('user', content);
   const loading = bubble('assistant', 'Яцуми думает…');
@@ -215,7 +208,6 @@ message.addEventListener('keydown', event => {
   if (saved.status === 'fulfilled') {
     const messages = saved.value.messages.filter(item => ['user', 'assistant'].includes(item.role));
     if (messages.length) {
-      showChat();
       for (const item of messages) bubble(item.role, item.content);
       scrollToLatest();
     }
@@ -227,63 +219,4 @@ message.addEventListener('keydown', event => {
   if (cloudState.configured) await configure(() => refreshModels());
 })();
 
-const avatar = $('yatsumiAvatar');
-const positionKey = 'yatsumi-avatar-position-v1';
-let position;
-try {
-  const saved = JSON.parse(localStorage.getItem(positionKey));
-  if (Number.isFinite(saved?.x) && Number.isFinite(saved?.y)) position = saved;
-} catch {}
-
-function refitAvatar() {
-  if (avatar.hidden || !position) return;
-  const viewport = window.visualViewport;
-  const left = viewport?.offsetLeft ?? 0, top = viewport?.offsetTop ?? 0;
-  const maxX = left + Math.max(0, (viewport?.width ?? innerWidth) - avatar.offsetWidth);
-  const maxY = top + Math.max(0, (viewport?.height ?? innerHeight) - avatar.offsetHeight);
-  avatar.style.left = Math.max(left, Math.min(position.x, maxX)) + 'px';
-  avatar.style.top = Math.max(top, Math.min(position.y, maxY)) + 'px';
-  avatar.style.right = 'auto';
-  avatar.style.bottom = 'auto';
-}
-avatar.querySelector('img').addEventListener('load', () => requestAnimationFrame(refitAvatar));
-window.addEventListener('resize', refitAvatar);
-window.visualViewport?.addEventListener('resize', refitAvatar);
-window.visualViewport?.addEventListener('scroll', refitAvatar);
-let drag = null;
-let suppressClick = false;
-avatar.addEventListener('pointerdown', event => {
-  if (event.button !== 0 || !event.isPrimary) return;
-  const rect = avatar.getBoundingClientRect();
-  drag = { id: event.pointerId, x: event.clientX, y: event.clientY, left: rect.left, top: rect.top, moved: false };
-  suppressClick = false;
-  avatar.setPointerCapture(event.pointerId);
-});
-avatar.addEventListener('pointermove', event => {
-  if (!drag || event.pointerId !== drag.id) return;
-  const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
-  if (!drag.moved && Math.hypot(dx, dy) <= 7) return;
-  drag.moved = true;
-  avatar.classList.add('is-dragging');
-  position = { x: drag.left + dx, y: drag.top + dy };
-  refitAvatar();
-});
-function finishDrag(event) {
-  if (!drag || event.pointerId !== drag.id) return;
-  suppressClick = drag.moved;
-  avatar.classList.remove('is-dragging');
-  if (drag.moved) {
-    const { left, top } = avatar.getBoundingClientRect();
-    position = { x: left, y: top };
-    try { localStorage.setItem(positionKey, JSON.stringify(position)); } catch {}
-  }
-  drag = null;
-}
-avatar.addEventListener('pointerup', finishDrag);
-avatar.addEventListener('pointercancel', finishDrag);
-avatar.addEventListener('lostpointercapture', finishDrag);
-avatar.addEventListener('click', event => {
-  if (suppressClick && event.detail) { suppressClick = false; return; }
-  showChat();
-  message.focus();
-});
+$('heroAvatar').addEventListener('click', () => message.focus());
