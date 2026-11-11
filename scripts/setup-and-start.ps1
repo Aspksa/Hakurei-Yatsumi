@@ -2,7 +2,8 @@ param(
  [Parameter(Mandatory=$true)][string]$ProjectRoot,
  [switch]$NoBrowser,
  [switch]$Offline,
- [switch]$Diagnostics
+ [switch]$Diagnostics,
+ [switch]$NoWatchdog
 )
 $ErrorActionPreference='Stop'
 $ProgressPreference='SilentlyContinue'
@@ -133,7 +134,7 @@ try {
  if(-not $IsWindows -and $PSVersionTable.PSEdition -eq 'Core' -and [Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT){throw 'Windows required'}
  if([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT){throw 'Windows required'}
  Set-Location -LiteralPath $root
- foreach($f in @('backend\requirements.txt','frontend\package.json','scripts\run-service.ps1','backend\app\db.py')) {
+ foreach($f in @('backend\requirements.txt','frontend\package.json','scripts\watchdog.ps1','backend\app\db.py')) {
   if(-not (Test-Path -LiteralPath (Join-Path $root $f))){throw "Missing project file: $f"}
  }
  $probe=Join-Path $logs ('.write-'+[guid]::NewGuid().ToString('N'))
@@ -212,6 +213,19 @@ try {
  $gateway=Launch $node 'server.js' (Join-Path $root 'frontend') 'node'
  Wait-Health 'http://127.0.0.1:3000/api/health' $gateway
  @{python=$api;node=$gateway}|ConvertTo-Json -Depth 3|Set-Content -LiteralPath $state -Encoding UTF8
+ if(-not $NoWatchdog) {
+  $watchState=Join-Path $logs 'watchdog.json'
+  $alive=$false
+  if(Test-Path -LiteralPath $watchState){
+   try{$previous=Get-Content -LiteralPath $watchState -Raw|ConvertFrom-Json;$alive=Owned $previous}catch{}
+  }
+  if(-not $alive){
+   $watchScript=Join-Path $root 'scripts\watchdog.ps1'
+   $powershell=Join-Path $PSHOME 'powershell.exe'
+   $watch=Start-Process -FilePath $powershell -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+$watchScript+'"'),'-ProjectRoot',('"'+$root+'"')) -WorkingDirectory $root -WindowStyle Hidden -PassThru
+   @{pid=$watch.Id;path=$powershell;started=$watch.StartTime.ToUniversalTime().ToString('o')}|ConvertTo-Json|Set-Content -LiteralPath $watchState -Encoding UTF8
+  }
+ }
  Log 'SUCCESS: API and Node gateway healthy'
  if(-not $NoBrowser){Start-Process 'http://127.0.0.1:8000/docs'}
  exit 0
