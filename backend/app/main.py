@@ -117,6 +117,58 @@ def create_event(user_id: int | None, event_type: str, details: str = "{}"):
         return {"id": cursor.lastrowid}
 
 
+
+class CoreTurnIn(BaseModel):
+    request_id: str = Field(pattern=r"^[0-9a-fA-F-]{36}$")
+    user_content: str = Field(min_length=1, max_length=8000)
+    assistant_content: str = Field(min_length=1, max_length=200000)
+
+def read_core_turn(db, conversation_id: int, request_id: str):
+    row = db.execute(
+        """SELECT t.request_id, u.content AS user_content, a.content AS assistant_content
+           FROM core_turns t
+           JOIN messages u ON u.id=t.user_message_id
+           JOIN messages a ON a.id=t.assistant_message_id
+           WHERE t.conversation_id=? AND t.request_id=?""",
+        (conversation_id, request_id),
+    ).fetchone()
+    return dict(row) if row else None
+
+@app.get("/core/conversations/{conversation_id}/turns/{request_id}")
+def get_core_turn(conversation_id: int, request_id: str):
+    with connection() as db:
+        result = read_core_turn(db, conversation_id, request_id)
+        if not result:
+            raise HTTPException(404, "Turn not found")
+        return result
+
+@app.post("/core/conversations/{conversation_id}/turns")
+def save_core_turn(conversation_id: int, data: CoreTurnIn):
+    # BEGIN IMMEDIATE serializes concurrent writers; the UNIQUE constraint makes retries safe.
+    with connection() as db:
+        db.execute("BEGIN IMMEDIATE")
+        if not db.execute("SELECT 1 FROM conversations WHERE id=?", (conversation_id,)).fetchone():
+            raise HTTPException(404, "Conversation not found")
+        existing = read_core_turn(db, conversation_id, data.request_id)
+        if existing:
+            if existing["user_content"] != data.user_content or existing["assistant_content"] != data.assistant_content:
+                raise HTTPException(409, "Request ID already belongs to another turn")
+            return {**existing, "duplicate": True}
+        user_id = db.execute(
+            "INSERT INTO messages(conversation_id,role,content) VALUES (?, 'user', ?) RETURNING id",
+            (conversation_id, data.user_content),
+        ).fetchone()["id"]
+        assistant_id = db.execute(
+            "INSERT INTO messages(conversation_id,role,content) VALUES (?, 'assistant', ?) RETURNING id",
+            (conversation_id, data.assistant_content),
+        ).fetchone()["id"]
+        db.execute(
+            "INSERT INTO core_turns(conversation_id,request_id,user_message_id,assistant_message_id) VALUES (?,?,?,?)",
+            (conversation_id, data.request_id, user_id, assistant_id),
+        )
+        return {"request_id": data.request_id, "user_content": data.user_content,
+                "assistant_content": data.assistant_content, "duplicate": False}
+
 @app.get("/core/session/{user_id}")
 def core_session(user_id: int):
     """Return the latest conversation for the local owner; no duplicate session per restart."""
