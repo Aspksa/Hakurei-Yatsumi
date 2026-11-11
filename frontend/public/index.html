@@ -16,8 +16,6 @@
     </button>
   </div>
 
-  <div class="stage"><img id="heroAvatar" alt="Яцуми — лиса с золотыми хвостами" draggable="false" hidden></div>
-
   <main class="chat">
     <section id="conversation" class="conversation" aria-label="Чат Яцуми" role="log" tabindex="0"></section>
     <form id="chatForm" class="composer">
@@ -29,6 +27,8 @@
     <p id="chatNotice" class="chat-notice" role="status" hidden></p>
   </main>
 </div>
+
+<button id="yatsumiAvatar" class="yatsumi-avatar" type="button" aria-label="Яцуми: нажмите, чтобы написать сообщение" title="Перетащите, чтобы передвинуть" hidden><img alt="" draggable="false"></button>
 
 <dialog id="overlay" class="overlay" aria-labelledby="settingsTitle">
   <div class="scrim" id="settingsCloseBackdrop"></div>
@@ -85,7 +85,7 @@
         <div class="avatar-row">
           <div class="avatar-settings-preview"><img id="avatarPreview" alt="Текущий аватар Яцуми" hidden><span id="avatarPreviewEmpty">Нет аватара</span></div>
           <div class="avatar-side">
-            <p>PNG, JPEG или WebP до 10 МБ. Картинка остаётся на этом компьютере.</p>
+            <p>PNG, JPEG или WebP до 10 МБ. Картинка остаётся на этом компьютере. Аватар можно перетаскивать по странице.</p>
             <input id="avatarFile" hidden type="file" accept="image/png,image/jpeg,image/webp" aria-label="Загрузить изображение аватара">
             <div class="avatar-settings-actions"><button class="secondary" id="avatarChoose" type="button">Выбрать изображение</button><button class="link-button" id="avatarReset" type="button">Вернуть стандартный</button></div>
             <div id="avatarMessage" class="small-note" role="status"></div>
